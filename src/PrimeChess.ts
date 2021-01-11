@@ -1,45 +1,45 @@
-/*
-   +---------------------------------------------------------------+
-   |                   0x88 BOARD REPRESENTATION                   |
-   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
- 8 |  0|  1|  2|  3|  4|  5|  6|  7|  8|  9| 10| 11| 12| 13| 14| 15|
- 7 | 16| 17| 18| 19| 20| 21| 22| 23| 24| 25| 26| 27| 28| 29| 30| 31|
- 6 | 32| 33| 34| 35| 36| 37| 38| 39| 40| 41| 42| 43| 44| 45| 46| 47|
- 5 | 48| 49| 50| 51| 52| 53| 54| 55| 56| 57| 58| 59| 60| 61| 62| 63|
- 4 | 64| 65| 66| 67| 68| 69| 70| 71| 72| 73| 74| 75| 76| 77| 78| 79|
- 3 | 80| 81| 82| 83| 84| 85| 86| 87| 88| 89| 90| 91| 92| 93| 94| 95|
- 2 | 96| 97| 98| 99|100|101|102|103|104|105|106|107|108|109|110|111|
- 1 |112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|
-   +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
-     A   B   C   D   E   F   G   H
-
-+---------------------------------+   +---------------------------------------+
-|          PIECE ENCODING         |   |              MOVE FLAGS               |
-+-----+-----+------+--------------+   +-----------+------+--------------------+
-| DEC | HEX | BIN  | DESCRIPTION  |   | BINARY    | HEX  | DESCRIPTION        |
-+-----+-----+------+--------------+   +-----------+------+--------------------+
-|   0 |   0 | 0000 | NONE         |   | 0000 0001 | 0x01 | CAPTURE BIT        |
-|   1 |   1 | 0001 | WHITE KING   |   | 0000 0010 | 0x02 | PAWN MOVE BIT      |
-|   2 |   2 | 0010 | WHITE PAWN   |   | 0000 0100 | 0x04 | PROMOTION BIT      |
-|   3 |   3 | 0011 | WHITE KNIGHT |   | 0000 1000 | 0x08 | EN PASSANT BIT     |
-|   4 |   4 | 0100 | WHITE BISHOP |   | 0001 0000 | 0x10 | PAWN 2 SQUARES BIT |
-|   5 |   5 | 0101 | WHITE ROOK   |   | 0010 0000 | 0x20 |                    |
-|   6 |   6 | 0110 | WHITE QUEEN  |   | 0100 0000 | 0x40 |                    |
-|   7 |   7 | 0111 |              |   | 1000 0000 | 0x80 |                    |
-|   8 |   8 | 1000 |              |   +-----------+------+--------------------+
-|   9 |   9 | 1001 | BLACK KING   |
-|  10 |   A | 1010 | BLACK PAWN   |
-|  11 |   B | 1011 | BLACK KNIGHT |
-|  12 |   C | 1100 | BLACK BISHOP |
-|  13 |   D | 1101 | BLACK ROOK   |
-|  14 |   E | 1110 | BLACK QUEEN  |
-|  15 |   F | 1111 |              |
-+-----+-----+------+--------------+
-| PIECE_COLOR_MASK  = 1000 = 0x08 |
-| PIECE_TYPE_MASK   = 0111 = 0x07 |
-| PIECE_SLIDER_MASK = 0100 = 0x04 |
-+---------------------------------+
-*/
+//
+//    +---------------------------------------------------------------+
+//    |                   0x88 BOARD REPRESENTATION                   |
+//    +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+//  8 |  0|  1|  2|  3|  4|  5|  6|  7|  8|  9| 10| 11| 12| 13| 14| 15|
+//  7 | 16| 17| 18| 19| 20| 21| 22| 23| 24| 25| 26| 27| 28| 29| 30| 31|
+//  6 | 32| 33| 34| 35| 36| 37| 38| 39| 40| 41| 42| 43| 44| 45| 46| 47|
+//  5 | 48| 49| 50| 51| 52| 53| 54| 55| 56| 57| 58| 59| 60| 61| 62| 63|
+//  4 | 64| 65| 66| 67| 68| 69| 70| 71| 72| 73| 74| 75| 76| 77| 78| 79|
+//  3 | 80| 81| 82| 83| 84| 85| 86| 87| 88| 89| 90| 91| 92| 93| 94| 95|
+//  2 | 96| 97| 98| 99|100|101|102|103|104|105|106|107|108|109|110|111|
+//  1 |112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|
+//    +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+//      A   B   C   D   E   F   G   H
+//
+//  +---------------------------------+   +------------------------------------+
+//  |          PIECE ENCODING         |   |             MOVE FLAGS             |
+//  +-----+-----+------+--------------+   +-----------+------+-----------------+
+//  | DEC | HEX | BIN  | DESCRIPTION  |   | BINARY    | HEX  | DESCRIPTION     |
+//  +-----+-----+------+--------------+   +-----------+------+-----------------+
+//  |   0 |   0 | 0000 | NONE         |   | 0000 0001 | 0x01 | CAPTURE         |
+//  |   1 |   1 | 0001 | WHITE KING   |   | 0000 0010 | 0x02 | PAWN MOVE       |
+//  |   2 |   2 | 0010 | WHITE PAWN   |   | 0000 0100 | 0x04 | PROMOTION       |
+//  |   3 |   3 | 0011 | WHITE KNIGHT |   | 0000 1000 | 0x08 | EN PASSANT      |
+//  |   4 |   4 | 0100 | WHITE BISHOP |   | 0001 0000 | 0x10 | PAWN 2 SQUARES  |
+//  |   5 |   5 | 0101 | WHITE ROOK   |   | 0010 0000 | 0x20 |                 |
+//  |   6 |   6 | 0110 | WHITE QUEEN  |   | 0100 0000 | 0x40 |                 |
+//  |   7 |   7 | 0111 |              |   | 1000 0000 | 0x80 |                 |
+//  |   8 |   8 | 1000 |              |   +-----------+------+-----------------+
+//  |   9 |   9 | 1001 | BLACK KING   |
+//  |  10 |   A | 1010 | BLACK PAWN   |
+//  |  11 |   B | 1011 | BLACK KNIGHT |
+//  |  12 |   C | 1100 | BLACK BISHOP |
+//  |  13 |   D | 1101 | BLACK ROOK   |
+//  |  14 |   E | 1110 | BLACK QUEEN  |
+//  |  15 |   F | 1111 |              |
+//  +-----+-----+------+--------------+
+//  | PIECE_COLOR_MASK  = 1000 = 0x08 |
+//  | PIECE_TYPE_MASK   = 0111 = 0x07 |
+//  | PIECE_SLIDER_MASK = 0100 = 0x04 |
+//  +---------------------------------+
+//
 
 ////////////////////////////////////////////////////////////////
 //  CONSTANTS                                                 //
@@ -483,64 +483,31 @@ function printMove(move: number) {
     console.log(PIECE_CODE_TO_PRINTABLE_CHAR.get(BOARD[fromSquare]) + '  moves from ' + toSquareCoordinates(fromSquare) + ' to ' + toSquareCoordinates(toSquare) + ' (capture=' + capturedPiece + '; promote=' + promotedPiece + ')');
 }
 
+function testPerft() {
+    let perftTests = new Map<string, number[]>();
+    perftTests.set('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', [1, 20, 400, 8902, 197281, 4865609, 119060324]); // Starting position
+    perftTests.set('8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 0', [1, 14, 191, 2812, 43238, 674624, 11030083, 178633661]); // Position 3
+    perftTests.set('r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10', [1, 46, 2079, 89890, 3894594, 164075551]); // Position 6
+
+    console.log('========================================');
+    perftTests.forEach((perftCounts, fenString) => {
+        initBoardFromFen(fenString);
+        printBoard();
+        for (let depth = 0; depth < perftCounts.length; depth++) {
+            let perftCount = perft(depth);
+            console.log('Depth = ' + depth + ' ; Perft = ' + perftCount + ' ; ' + (perftCount == perftCounts[depth]));
+        }
+        console.log('========================================');
+    });
+}
+
 ////////////////////////////////////////////////////////////////
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-/*
-const STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-// STARTING FEN
-// Depth = 0 ; Perft =             1
-// Depth = 1 ; Perft =            20
-// Depth = 2 ; Perft =           400
-// Depth = 3 ; Perft =         8.902
-// Depth = 4 ; Perft =       197.281
-// Depth = 5 ; Perft =     4.865.609
-// Depth = 6 ; Perft =   119.060.324
-// Depth = 7 ; Perft = 3.195.901.860
+testPerft();
 
-initBoardFromFen(STARTING_FEN);
-printBoard();
-for (let depth = 0; depth <= 6; depth++) {
-    console.log("Depth = " + depth + " ; Perft = " + perft(depth));
-}
-
-const POSITION_3_FEN = '8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 0';
-// POSITION 3 FEN
-// Depth = 0 ; Perft =             1
-// Depth = 1 ; Perft =            14
-// Depth = 2 ; Perft =           191
-// Depth = 3 ; Perft =         2.812
-// Depth = 4 ; Perft =        43.238
-// Depth = 5 ; Perft =       674.624
-// Depth = 6 ; Perft =    11.030.083
-// Depth = 7 ; Perft =   178.633.661
-// Depth = 8 ; Perft = 3.009.794.393
-
-initBoardFromFen(POSITION_3_FEN);
-printBoard();
-for (let depth = 0; depth <= 7; depth++) {
-    console.log("Depth = " + depth + " ; Perft = " + perft(depth));
-}
-
-const POSITION_6_FEN = 'r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10'
-// POSITION 6 FEN
-// Depth = 0 ; Perft =               1
-// Depth = 1 ; Perft =              46
-// Depth = 2 ; Perft =           2.079
-// Depth = 3 ; Perft =          89.890
-// Depth = 4 ; Perft =       3.894.594
-// Depth = 5 ; Perft =     164.075.551
-// Depth = 6 ; Perft =   6.923.051.137
-
-initBoardFromFen(POSITION_6_FEN);
-printBoard();
-for (let depth = 0; depth <= 5; depth++) {
-    console.log("Depth = " + depth + " ; Perft = " + perft(depth));
-}
-*/
-
-const STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 initBoardFromFen(STARTING_FEN);
 for (let run = 0; run < 5; run++) {
     console.time('perft');
