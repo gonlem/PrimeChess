@@ -18,14 +18,14 @@
 //  +-----+-----+------+--------------+   +-----------+------+-----------------+
 //  | DEC | HEX | BIN  | DESCRIPTION  |   | BINARY    | HEX  | DESCRIPTION     |
 //  +-----+-----+------+--------------+   +-----------+------+-----------------+
-//  |   0 |   0 | 0000 | NONE         |   | 0000 0001 | 0x01 | CAPTURE         |
-//  |   1 |   1 | 0001 | WHITE KING   |   | 0000 0010 | 0x02 | PAWN MOVE       |
-//  |   2 |   2 | 0010 | WHITE PAWN   |   | 0000 0100 | 0x04 | PROMOTION       |
+//  |   0 |   0 | 0000 | NONE         |   | 0000 0001 | 0x01 | K-SIDE CASTLING |
+//  |   1 |   1 | 0001 | WHITE KING   |   | 0000 0010 | 0x02 | Q-SIDE CASTLING |
+//  |   2 |   2 | 0010 | WHITE PAWN   |   | 0000 0100 | 0x04 | PAWN 2 SQUARES  |
 //  |   3 |   3 | 0011 | WHITE KNIGHT |   | 0000 1000 | 0x08 | EN PASSANT      |
-//  |   4 |   4 | 0100 | WHITE BISHOP |   | 0001 0000 | 0x10 | PAWN 2 SQUARES  |
-//  |   5 |   5 | 0101 | WHITE ROOK   |   | 0010 0000 | 0x20 |                 |
-//  |   6 |   6 | 0110 | WHITE QUEEN  |   | 0100 0000 | 0x40 |                 |
-//  |   7 |   7 | 0111 |              |   | 1000 0000 | 0x80 |                 |
+//  |   4 |   4 | 0100 | WHITE BISHOP |   | 0001 0000 | 0x10 | PROMOTION       |
+//  |   5 |   5 | 0101 | WHITE ROOK   |   | 0010 0000 | 0x20 | PAWN OR CAPTURE |
+//  |   6 |   6 | 0110 | WHITE QUEEN  |   | 0100 0000 | 0x40 | NOT YET USED    |
+//  |   7 |   7 | 0111 |              |   | 1000 0000 | 0x80 | NOT YET USED    |
 //  |   8 |   8 | 1000 |              |   +-----------+------+-----------------+
 //  |   9 |   9 | 1001 | BLACK KING   |
 //  |  10 |   A | 1010 | BLACK PAWN   |
@@ -45,7 +45,8 @@
 //  CONSTANTS                                                 //
 ////////////////////////////////////////////////////////////////
 
-const NONE = 0;
+const NULL = 0;
+
 const KING = 1;
 const PAWN = 2;
 const KNIGHT = 3;
@@ -54,21 +55,21 @@ const ROOK = 5;
 const QUEEN = 6;
 
 const WHITE = 0;
-const BLACK = 8;
+const BLACK = 1;
 
-const WHITE_KING = WHITE + KING;
-const WHITE_PAWN = WHITE + PAWN;
-const WHITE_KNIGHT = WHITE + KNIGHT;
-const WHITE_BISHOP = WHITE + BISHOP;
-const WHITE_ROOK = WHITE + ROOK;
-const WHITE_QUEEN = WHITE + QUEEN;
+const WHITE_KING = makePiece(WHITE, KING);
+const WHITE_PAWN = makePiece(WHITE, PAWN);
+const WHITE_KNIGHT = makePiece(WHITE, KNIGHT);
+const WHITE_BISHOP = makePiece(WHITE, BISHOP);
+const WHITE_ROOK = makePiece(WHITE, ROOK);
+const WHITE_QUEEN = makePiece(WHITE, QUEEN);
 
-const BLACK_KING = BLACK + KING;
-const BLACK_PAWN = BLACK + PAWN;
-const BLACK_KNIGHT = BLACK + KNIGHT;
-const BLACK_BISHOP = BLACK + BISHOP;
-const BLACK_ROOK = BLACK + ROOK;
-const BLACK_QUEEN = BLACK + QUEEN;
+const BLACK_KING = makePiece(BLACK, KING);
+const BLACK_PAWN = makePiece(BLACK, PAWN);
+const BLACK_KNIGHT = makePiece(BLACK, KNIGHT);
+const BLACK_BISHOP = makePiece(BLACK, BISHOP);
+const BLACK_ROOK = makePiece(BLACK, ROOK);
+const BLACK_QUEEN = makePiece(BLACK, QUEEN);
 
 const UP = -16;
 const RIGHT = +1;
@@ -76,9 +77,9 @@ const DOWN = +16;
 const LEFT = -1;
 
 const OUT_OF_BOARD_MASK = 0x88;
-const SQUARE_NULL = 0x88;
-const RANK_MASK = 0x70;
-const FILE_MASK = 0x07;
+const SQUARE_NULL = 0x7F;
+const RANK_MASK = 0xF0;
+const FILE_MASK = 0x0F;
 
 const RANK_1 = 0x70;
 const RANK_2 = 0x60;
@@ -91,25 +92,23 @@ const PIECE_COLOR_MASK = 0x08;
 const PIECE_TYPE_MASK = 0x07;
 const PIECE_SLIDER_MASK = 0x04;
 
-const CAPTURE_BIT = 0x01;
-const PAWN_MOVE_BIT = 0x02;
-const PROMOTION_BIT = 0x04;
+const KINGSIDE_CASTLING_BIT = 0x01;
+const QUEENSIDE_CASTLING_BIT = 0x02;
+const PAWN_PUSH_2_SQUARES_BIT = 0x04;
 const EN_PASSANT_BIT = 0x08;
-const PAWN_PUSH_2_SQUARES_BIT = 0x10;
+const PROMOTION_BIT = 0x10;
+const PAWN_OR_CAPTURE_BIT = 0x20;
 
-const WHITE_KINGSIDE_CASTLING_BIT = 0x01;
-const WHITE_QUEENSIDE_CASTLING_BIT = 0x02;
-const BLACK_KINGSIDE_CASTLING_BIT = 0x04;
-const BLACK_QUEENSIDE_CASTLING_BIT = 0x08;
-
-const MF_PAWN_PUSH_1_SQUARE = PAWN_MOVE_BIT;
-const MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE = PAWN_MOVE_BIT + PROMOTION_BIT;
-const MF_PAWN_PUSH_2_SQUARES = PAWN_MOVE_BIT + PAWN_PUSH_2_SQUARES_BIT;
-const MF_PAWN_CAPTURE = PAWN_MOVE_BIT + CAPTURE_BIT;
-const MF_PAWN_CAPTURE_AND_PROMOTE = PAWN_MOVE_BIT + CAPTURE_BIT + PROMOTION_BIT;
-const MF_PAWN_CAPTURE_EN_PASSANT = PAWN_MOVE_BIT + CAPTURE_BIT + EN_PASSANT_BIT;
+const MF_PAWN_PUSH_1_SQUARE = PAWN_OR_CAPTURE_BIT;
+const MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE = PAWN_OR_CAPTURE_BIT + PROMOTION_BIT;
+const MF_PAWN_PUSH_2_SQUARES = PAWN_OR_CAPTURE_BIT + PAWN_PUSH_2_SQUARES_BIT;
+const MF_PAWN_CAPTURE = PAWN_OR_CAPTURE_BIT;
+const MF_PAWN_CAPTURE_AND_PROMOTE = PAWN_OR_CAPTURE_BIT + PROMOTION_BIT;
+const MF_PAWN_CAPTURE_EN_PASSANT = PAWN_OR_CAPTURE_BIT + EN_PASSANT_BIT;
 const MF_PIECE_NORMAL_MOVE = 0;
-const MF_PIECE_CAPTURE_MOVE = CAPTURE_BIT;
+const MF_PIECE_CAPTURE_MOVE = PAWN_OR_CAPTURE_BIT;
+const MF_KINGSIDE_CASTLING = KINGSIDE_CASTLING_BIT;
+const MF_QUEENSIDE_CASTLING = QUEENSIDE_CASTLING_BIT;
 
 const FEN_CHAR_TO_PIECE_CODE = new Map([
     ['P', WHITE_PAWN], ['N', WHITE_KNIGHT], ['B', WHITE_BISHOP], ['R', WHITE_ROOK], ['Q', WHITE_QUEEN], ['K', WHITE_KING],
@@ -119,7 +118,7 @@ const FEN_CHAR_TO_PIECE_CODE = new Map([
 const PIECE_CODE_TO_PRINTABLE_CHAR = new Map([
     [WHITE_PAWN, '\u2659'], [WHITE_KNIGHT, '\u2658'], [WHITE_BISHOP, '\u2657'], [WHITE_ROOK, '\u2656'], [WHITE_QUEEN, '\u2655'], [WHITE_KING, '\u2654'],
     [BLACK_PAWN, '\u265F'], [BLACK_KNIGHT, '\u265E'], [BLACK_BISHOP, '\u265D'], [BLACK_ROOK, '\u265C'], [BLACK_QUEEN, '\u265B'], [BLACK_KING, '\u265A'],
-    [NONE, '.']
+    [NULL, '.']
 ]);
 
 const MOVE_DIRECTIONS = new Map([
@@ -139,13 +138,21 @@ let ACTIVE_COLOR = WHITE;
 let MOVE_STACK: number[] = [];
 let HISTORY_STACK: number[] = []; // Used in takeback() to restore the previous board state
 let EN_PASSANT_SQUARE = SQUARE_NULL;
-let CASTLING_RIGHTS = 0;
-let KING_SQUARE = [0, 0];
+let CASTLING_RIGHTS = [NULL, NULL];
+let KING_SQUARE = [SQUARE_NULL, SQUARE_NULL];
 let FIFTY_PLY = 0;
 
 ////////////////////////////////////////////////////////////////
 //  FUNCTIONS                                                 //
 ////////////////////////////////////////////////////////////////
+
+function makePiece(color: number, pieceType: number) {
+    return pieceType | (color << 3);
+}
+
+function getPieceColor(piece: number) {
+    return (piece & PIECE_COLOR_MASK) >> 3;
+}
 
 function toSquareCoordinates(square: number) {
     let file = String.fromCharCode('a'.charCodeAt(0) + square % 16);
@@ -160,14 +167,14 @@ function toSquare(squareCoordinates: string): number {
 
 function clearBoard() {
     for (let square = 0; square < BOARD.length; square++) {
-        BOARD[square] = NONE;
+        BOARD[square] = NULL;
     }
     ACTIVE_COLOR = WHITE;
     MOVE_STACK = [];
     HISTORY_STACK = [];
     EN_PASSANT_SQUARE = SQUARE_NULL;
-    CASTLING_RIGHTS = 0;
-    KING_SQUARE = [0, 0];
+    CASTLING_RIGHTS = [NULL, NULL];
+    KING_SQUARE = [SQUARE_NULL, SQUARE_NULL];
     FIFTY_PLY = 0;
 }
 
@@ -189,7 +196,7 @@ function initBoardFromFen(fen: string) {
         } else if (isNaN(parseInt(c))) {
             let piece = FEN_CHAR_TO_PIECE_CODE.get(c)!;
             if ((piece & PIECE_TYPE_MASK) == KING) {
-                KING_SQUARE[(piece & PIECE_COLOR_MASK) / BLACK] = index;
+                KING_SQUARE[getPieceColor(piece)] = index;
             }
             BOARD[index] = piece;
             index += 1;
@@ -200,10 +207,10 @@ function initBoardFromFen(fen: string) {
 
     if (fenActiveColor == 'b') ACTIVE_COLOR = BLACK;
 
-    if (fenCastlingRights.includes('K')) CASTLING_RIGHTS = CASTLING_RIGHTS | WHITE_KINGSIDE_CASTLING_BIT;
-    if (fenCastlingRights.includes('Q')) CASTLING_RIGHTS = CASTLING_RIGHTS | WHITE_QUEENSIDE_CASTLING_BIT;
-    if (fenCastlingRights.includes('k')) CASTLING_RIGHTS = CASTLING_RIGHTS | BLACK_KINGSIDE_CASTLING_BIT;
-    if (fenCastlingRights.includes('q')) CASTLING_RIGHTS = CASTLING_RIGHTS | BLACK_QUEENSIDE_CASTLING_BIT;
+    if (fenCastlingRights.includes('K')) CASTLING_RIGHTS[WHITE] = CASTLING_RIGHTS[WHITE] | KINGSIDE_CASTLING_BIT;
+    if (fenCastlingRights.includes('Q')) CASTLING_RIGHTS[WHITE] = CASTLING_RIGHTS[WHITE] | QUEENSIDE_CASTLING_BIT;
+    if (fenCastlingRights.includes('k')) CASTLING_RIGHTS[BLACK] = CASTLING_RIGHTS[BLACK] | KINGSIDE_CASTLING_BIT;
+    if (fenCastlingRights.includes('q')) CASTLING_RIGHTS[BLACK] = CASTLING_RIGHTS[BLACK] | QUEENSIDE_CASTLING_BIT;
 
     if (fenEnPassantSquare != '-') {
         EN_PASSANT_SQUARE = toSquare(fenEnPassantSquare);
@@ -219,60 +226,52 @@ function generateMoves(): number[] {
         if (square & OUT_OF_BOARD_MASK) continue;
 
         let piece = BOARD[square];
-        if (piece == NONE) continue;
+        if (piece == NULL) continue;
 
-        let pieceColor = piece & PIECE_COLOR_MASK;
+        let pieceColor = getPieceColor(piece);
         if (pieceColor != ACTIVE_COLOR) continue;
 
         let pieceType = piece & PIECE_TYPE_MASK;
         if (pieceType == PAWN) {
-            let direction = UP * (1 - ACTIVE_COLOR / 4);
+            let direction = UP * (1 - 2 * ACTIVE_COLOR);
 
-            // Pawn moves forward
             let targetSquare = square + direction;
             let targetPiece = BOARD[targetSquare];
-            if (targetPiece == NONE) {
-                if ((targetSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR / BLACK]) {
-                    // Pawn moves one square forward and promotes
-                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NONE, (ACTIVE_COLOR + QUEEN)));
-                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NONE, (ACTIVE_COLOR + ROOK)));
-                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NONE, (ACTIVE_COLOR + BISHOP)));
-                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NONE, (ACTIVE_COLOR + KNIGHT)));
+            if (targetPiece == NULL) {
+                if ((targetSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR]) {
+                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NULL, makePiece(ACTIVE_COLOR, QUEEN)));
+                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NULL, makePiece(ACTIVE_COLOR, ROOK)));
+                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NULL, makePiece(ACTIVE_COLOR, BISHOP)));
+                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NULL, makePiece(ACTIVE_COLOR, KNIGHT)));
                 } else {
-                    // Pawn moves one square forward
                     moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE, square, targetSquare));
 
-                    if ((square & RANK_MASK) == PAWN_STARTING_RANK[ACTIVE_COLOR / BLACK]) {
+                    if ((square & RANK_MASK) == PAWN_STARTING_RANK[ACTIVE_COLOR]) {
                         targetSquare += direction;
                         let targetPiece = BOARD[targetSquare];
-                        if (targetPiece == NONE) {
-                            // Pawn moves two squares forward
+                        if (targetPiece == NULL) {
                             moveList.push(createMove(MF_PAWN_PUSH_2_SQUARES, square, targetSquare));
                         }
                     }
                 }
             }
 
-            // Pawn captures diagonally
             for (let lr = LEFT; lr <= RIGHT; lr += 2) {
                 targetSquare = square + direction + lr;
                 if (targetSquare & OUT_OF_BOARD_MASK) continue;
 
                 targetPiece = BOARD[targetSquare];
-                if (targetPiece != NONE && (targetPiece & PIECE_COLOR_MASK) != ACTIVE_COLOR) {
-                    if ((targetSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR / BLACK]) {
-                        // Pawn capture and promotes
-                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, (ACTIVE_COLOR + QUEEN)));
-                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, (ACTIVE_COLOR + ROOK)));
-                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, (ACTIVE_COLOR + BISHOP)));
-                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, (ACTIVE_COLOR + KNIGHT)));
+                if (targetPiece != NULL && getPieceColor(targetPiece) != ACTIVE_COLOR) {
+                    if ((targetSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR]) {
+                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, makePiece(ACTIVE_COLOR, QUEEN)));
+                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, makePiece(ACTIVE_COLOR, ROOK)));
+                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, makePiece(ACTIVE_COLOR, BISHOP)));
+                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, makePiece(ACTIVE_COLOR, KNIGHT)));
                     } else {
-                        // Pawn capture
                         moveList.push(createMove(MF_PAWN_CAPTURE, square, targetSquare, targetPiece));
                     }
                 }
                 if (targetSquare == EN_PASSANT_SQUARE) {
-                    // Pawn capture "en passant"
                     moveList.push(createMove(MF_PAWN_CAPTURE_EN_PASSANT, square, targetSquare));
                 }
             }
@@ -287,9 +286,9 @@ function generateMoves(): number[] {
                     if (targetSquare & OUT_OF_BOARD_MASK) break;
 
                     let targetPiece = BOARD[targetSquare];
-                    if (targetPiece != NONE && (targetPiece & PIECE_COLOR_MASK) == ACTIVE_COLOR) break;
+                    if (targetPiece != NULL && getPieceColor(targetPiece) == ACTIVE_COLOR) break; //TODO modify this
 
-                    if (targetPiece != NONE) {
+                    if (targetPiece != NULL) {
                         moveList.push(createMove(MF_PIECE_CAPTURE_MOVE, square, targetSquare, targetPiece));
                         break;
                     }
@@ -300,78 +299,110 @@ function generateMoves(): number[] {
         }
     }
 
-    // Generate castle moves
-    let kingSquare = KING_SQUARE[ACTIVE_COLOR / BLACK];
-    // TODO
+    if (CASTLING_RIGHTS[ACTIVE_COLOR] & KINGSIDE_CASTLING_BIT) {
+        let kingSquare = KING_SQUARE[ACTIVE_COLOR];
+        if (BOARD[kingSquare + RIGHT] == NULL
+            && BOARD[kingSquare + RIGHT + RIGHT] == NULL) {
+
+            if (!isSquareAttacked(kingSquare, 1 - ACTIVE_COLOR)
+                && !isSquareAttacked(kingSquare + RIGHT, 1 - ACTIVE_COLOR)) {
+                moveList.push(createMove(MF_KINGSIDE_CASTLING, kingSquare, kingSquare + RIGHT + RIGHT))
+            }
+        }
+    }
+
+    if (CASTLING_RIGHTS[ACTIVE_COLOR] & QUEENSIDE_CASTLING_BIT) {
+        let kingSquare = KING_SQUARE[ACTIVE_COLOR];
+        if (BOARD[kingSquare + LEFT] == NULL
+            && BOARD[kingSquare + LEFT + LEFT] == NULL
+            && BOARD[kingSquare + LEFT + LEFT + LEFT] == NULL) {
+
+            if (!isSquareAttacked(kingSquare, 1 - ACTIVE_COLOR)
+                && !isSquareAttacked(kingSquare + LEFT, 1 - ACTIVE_COLOR)) {
+                moveList.push(createMove(MF_QUEENSIDE_CASTLING, kingSquare, kingSquare + LEFT + LEFT))
+            }
+        }
+    }
 
     return moveList;
 }
 
-function createMove(moveFlags: number, fromSquare: number, toSquare: number, capturedPiece: number = NONE, promotedPiece: number = NONE): number {
+function createMove(moveFlags: number, fromSquare: number, toSquare: number, capturedPiece: number = NULL, promotedPiece: number = NULL): number {
     return moveFlags | (fromSquare << 8) | (toSquare << 15) | (capturedPiece << 22) | (promotedPiece << 26);
 }
 
-function createHistory(enPassantSquare: number, castlingRights: number, fiftyMoveClock: number): number {
-    return enPassantSquare | (castlingRights << 7) | (fiftyMoveClock << 11);
+function createHistory(enPassantSquare: number, castlingRights: number[], fiftyMoveClock: number): number {
+    return enPassantSquare | (castlingRights[WHITE] << 7) | (castlingRights[BLACK] << 9) | (fiftyMoveClock << 11);
 }
 
 function makeMove(move: number): void {
     MOVE_STACK.push(move);
     HISTORY_STACK.push(createHistory(EN_PASSANT_SQUARE, CASTLING_RIGHTS, FIFTY_PLY));
-    ACTIVE_COLOR = BLACK - ACTIVE_COLOR;
+    EN_PASSANT_SQUARE = SQUARE_NULL;
+    FIFTY_PLY++;
 
     let moveFlags = move & 0xFF;
     let fromSquare = (move >> 8) & 0x7F;
     let toSquare = (move >> 15) & 0x7F;
 
     let piece = BOARD[fromSquare];
-    BOARD[fromSquare] = NONE;
+    BOARD[fromSquare] = NULL;
     BOARD[toSquare] = piece;
 
-    // Update EN_PASSANT_SQUARE
-    if (moveFlags & PAWN_PUSH_2_SQUARES_BIT) {
-        EN_PASSANT_SQUARE = (fromSquare + toSquare) / 2;
-    } else {
-        EN_PASSANT_SQUARE = SQUARE_NULL;
-    }
-
-    // Update FIFTY_PLY
-    if ((moveFlags & PAWN_MOVE_BIT) || (moveFlags & CAPTURE_BIT)) {
+    // Reset FIFTY_PLY if pawn move or capture
+    if (moveFlags & PAWN_OR_CAPTURE_BIT) {
         FIFTY_PLY = 0;
-    } else {
-        FIFTY_PLY++;
     }
 
-    // Pawn promotion
-    if (moveFlags & PROMOTION_BIT) {
-        let promotedPiece = (move >> 26) & 0x0F;
-        BOARD[toSquare] = promotedPiece;
-    }
-
-    // Pawn captures en passant 
-    if (moveFlags & EN_PASSANT_BIT) {
-        // Captured pawn should be removed
-        let square = (fromSquare & RANK_MASK) + (toSquare & FILE_MASK);
-        BOARD[square] = NONE;
+    // Pawn move
+    if ((piece & PIECE_TYPE_MASK) == PAWN) {
+        if (moveFlags & PAWN_PUSH_2_SQUARES_BIT) {
+            EN_PASSANT_SQUARE = (fromSquare + toSquare) / 2;
+        } else if (moveFlags & PROMOTION_BIT) {
+            let promotedPiece = (move >> 26) & 0x0F;
+            BOARD[toSquare] = promotedPiece;
+        } else if (moveFlags & EN_PASSANT_BIT) {
+            // Remove captured pawn
+            BOARD[(fromSquare & RANK_MASK) + (toSquare & FILE_MASK)] = NULL;
+        }
     }
 
     // King move
     if ((piece & PIECE_TYPE_MASK) == KING) {
-        KING_SQUARE[(piece & PIECE_COLOR_MASK) / BLACK] = toSquare;
+        KING_SQUARE[ACTIVE_COLOR] = toSquare;
+        CASTLING_RIGHTS[ACTIVE_COLOR] = NULL;
+
+        if (moveFlags & KINGSIDE_CASTLING_BIT) {
+            BOARD[toSquare + RIGHT] = NULL;
+            BOARD[toSquare + LEFT] = makePiece(ACTIVE_COLOR, ROOK);
+        } else if (moveFlags & QUEENSIDE_CASTLING_BIT) {
+            BOARD[toSquare + LEFT + LEFT] = NULL;
+            BOARD[toSquare + RIGHT] = makePiece(ACTIVE_COLOR, ROOK);
+        }
     }
 
+    if(fromSquare == 112 || toSquare == 112) CASTLING_RIGHTS[WHITE] = 1 & CASTLING_RIGHTS[WHITE];
+    if(fromSquare == 119 || toSquare == 119) CASTLING_RIGHTS[WHITE] = 2 & CASTLING_RIGHTS[WHITE];
+    if(fromSquare == 0 || toSquare == 0) CASTLING_RIGHTS[BLACK] = 1 & CASTLING_RIGHTS[BLACK];
+    if(fromSquare == 7 || toSquare == 7) CASTLING_RIGHTS[BLACK] = 2 & CASTLING_RIGHTS[BLACK];
+
+    // Switch side to move
+    ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 }
 
 function takeback(): void {
+    // Restore side to move
+    ACTIVE_COLOR = 1 - ACTIVE_COLOR;
+
     // Restore game state from history
     let history = HISTORY_STACK.pop()!;
     EN_PASSANT_SQUARE = history & 0x7F;
-    CASTLING_RIGHTS = (history >> 7) & 0x0F;
+    CASTLING_RIGHTS[WHITE] = (history >> 7) & 0x03;
+    CASTLING_RIGHTS[BLACK] = (history >> 9) & 0x03;
     FIFTY_PLY = (history >> 11) & 0x7F;
-    ACTIVE_COLOR = BLACK - ACTIVE_COLOR;
 
     let move = MOVE_STACK.pop()!;
-    let moveFlags = move & 0x0F;
+    let moveFlags = move & 0xFF;
     let fromSquare = (move >> 8) & 0x7F;
     let toSquare = (move >> 15) & 0x7F;
     let capturedPiece = (move >> 22) & 0x0F;
@@ -379,28 +410,34 @@ function takeback(): void {
     let piece = BOARD[toSquare];
 
     // If last move was a promotion, restore the promoting pawn
-    if (moveFlags & PROMOTION_BIT) piece = ACTIVE_COLOR + PAWN;
+    if (moveFlags & PROMOTION_BIT) piece = makePiece(ACTIVE_COLOR, PAWN);
 
     BOARD[fromSquare] = piece;
     BOARD[toSquare] = capturedPiece;
 
-    if ((piece & PIECE_TYPE_MASK) == KING) {
-        KING_SQUARE[ACTIVE_COLOR / BLACK] = fromSquare;
-    }
-
     // If last move was an en passant capture, restore the captured pawn
     if (moveFlags & EN_PASSANT_BIT) {
-        let square = (fromSquare & RANK_MASK) + (toSquare & FILE_MASK);
-        BOARD[square] = (BLACK - ACTIVE_COLOR) + PAWN;
+        BOARD[(fromSquare & RANK_MASK) + (toSquare & FILE_MASK)] = makePiece(1 - ACTIVE_COLOR, PAWN);
     }
 
+    if ((piece & PIECE_TYPE_MASK) == KING) {
+        KING_SQUARE[ACTIVE_COLOR] = fromSquare;
+
+        if (moveFlags & KINGSIDE_CASTLING_BIT) {
+            BOARD[toSquare + RIGHT] = makePiece(ACTIVE_COLOR, ROOK);
+            BOARD[toSquare + LEFT] = NULL;
+        } else if (moveFlags & QUEENSIDE_CASTLING_BIT) {
+            BOARD[toSquare + LEFT + LEFT] = makePiece(ACTIVE_COLOR, ROOK);
+            BOARD[toSquare + RIGHT] = NULL;
+        }
+    }
 }
 
 function isSquareAttacked(square: number, color: number): boolean {
     for (let pieceType = QUEEN; pieceType >= KING; pieceType--) {
-        let piece = color + pieceType;
+        let piece = makePiece(color, pieceType);
         if (pieceType == PAWN) {
-            let direction = DOWN * (1 - color / 4);
+            let direction = DOWN * (1 - 2 * color);
             for (let lr = LEFT; lr <= RIGHT; lr += 2) {
                 let targetSquare = square + direction + lr;
                 if (targetSquare & OUT_OF_BOARD_MASK) continue;
@@ -415,7 +452,7 @@ function isSquareAttacked(square: number, color: number): boolean {
                     targetSquare += directions[d];
                     if (targetSquare & OUT_OF_BOARD_MASK) break;
                     let targetPiece = BOARD[targetSquare];
-                    if (targetPiece != NONE) {
+                    if (targetPiece != NULL) {
                         if (targetPiece == piece) return true;
                         break;
                     }
@@ -428,7 +465,7 @@ function isSquareAttacked(square: number, color: number): boolean {
 
 function isMoveLegal(move: number): boolean {
     makeMove(move);
-    let isLegal = !isSquareAttacked(KING_SQUARE[1 - ACTIVE_COLOR / BLACK], ACTIVE_COLOR);
+    let isLegal = !isSquareAttacked(KING_SQUARE[1 - ACTIVE_COLOR], ACTIVE_COLOR);
     takeback();
     return isLegal;
 }
@@ -441,7 +478,8 @@ function perft(depth: number): number {
         let move = moveList[moveIndex];
         if (isMoveLegal(move)) {
             makeMove(move);
-            nodes += perft(depth - 1);
+            let pnodes = perft(depth - 1);
+            nodes += pnodes;
             takeback();
         }
     }
@@ -486,7 +524,11 @@ function printMove(move: number) {
 function testPerft() {
     let perftTests = new Map<string, number[]>();
     perftTests.set('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', [1, 20, 400, 8902, 197281, 4865609, 119060324]); // Starting position
+    perftTests.set('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -', [1, 48, 2039, 97862, 4085603, 193690690]); // Position 2
     perftTests.set('8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 0', [1, 14, 191, 2812, 43238, 674624, 11030083, 178633661]); // Position 3
+    perftTests.set('r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1', [1, 6, 264, 9467, 422333, 15833292]); // Position 4
+    perftTests.set('r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1', [1, 6, 264, 9467, 422333, 15833292]); // Position 4 mirrored
+    perftTests.set('rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8', [1, 44, 1486, 62379, 2103487, 89941194]); // Position 5
     perftTests.set('r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10', [1, 46, 2079, 89890, 3894594, 164075551]); // Position 6
 
     console.log('========================================');
@@ -505,7 +547,7 @@ function testPerft() {
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-testPerft();
+//testPerft();
 
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 initBoardFromFen(STARTING_FEN);
