@@ -80,6 +80,13 @@ const SQUARE_NULL = 0x88;
 const RANK_MASK = 0x70;
 const FILE_MASK = 0x07;
 
+const RANK_1 = 0x70;
+const RANK_2 = 0x60;
+const RANK_7 = 0x10;
+const RANK_8 = 0x00;
+const PAWN_STARTING_RANK = [RANK_2, RANK_7];
+const PAWN_PROMOTING_RANK = [RANK_8, RANK_1];
+
 const PIECE_COLOR_MASK = 0x08;
 const PIECE_TYPE_MASK = 0x07;
 const PIECE_SLIDER_MASK = 0x04;
@@ -104,23 +111,24 @@ const MF_PAWN_CAPTURE_EN_PASSANT = PAWN_MOVE_BIT + CAPTURE_BIT + EN_PASSANT_BIT;
 const MF_PIECE_NORMAL_MOVE = 0;
 const MF_PIECE_CAPTURE_MOVE = CAPTURE_BIT;
 
-const FEN_CHAR_TO_PIECE_CODE = new Map<string, number>([
+const FEN_CHAR_TO_PIECE_CODE = new Map([
     ['P', WHITE_PAWN], ['N', WHITE_KNIGHT], ['B', WHITE_BISHOP], ['R', WHITE_ROOK], ['Q', WHITE_QUEEN], ['K', WHITE_KING],
     ['p', BLACK_PAWN], ['n', BLACK_KNIGHT], ['b', BLACK_BISHOP], ['r', BLACK_ROOK], ['q', BLACK_QUEEN], ['k', BLACK_KING]
 ]);
 
-const PIECE_CODE_TO_PRINTABLE_CHAR = new Map<number, string>([
-    [WHITE_PAWN, '\u2659'], [WHITE_BISHOP, '\u2657'], [WHITE_KNIGHT, '\u2658'], [WHITE_ROOK, '\u2656'], [WHITE_QUEEN, '\u2655'], [WHITE_KING, '\u2654'],
-    [BLACK_PAWN, '\u265F'], [BLACK_BISHOP, '\u265D'], [BLACK_KNIGHT, '\u265E'], [BLACK_ROOK, '\u265C'], [BLACK_QUEEN, '\u265B'], [BLACK_KING, '\u265A'],
+const PIECE_CODE_TO_PRINTABLE_CHAR = new Map([
+    [WHITE_PAWN, '\u2659'], [WHITE_KNIGHT, '\u2658'], [WHITE_BISHOP, '\u2657'], [WHITE_ROOK, '\u2656'], [WHITE_QUEEN, '\u2655'], [WHITE_KING, '\u2654'],
+    [BLACK_PAWN, '\u265F'], [BLACK_KNIGHT, '\u265E'], [BLACK_BISHOP, '\u265D'], [BLACK_ROOK, '\u265C'], [BLACK_QUEEN, '\u265B'], [BLACK_KING, '\u265A'],
     [NONE, '.']
 ]);
 
-const MOVE_DIRECTIONS = new Map<number, number[]>();
-MOVE_DIRECTIONS.set(KNIGHT, [UP+UP+LEFT, UP+UP+RIGHT, DOWN+DOWN+LEFT, DOWN+DOWN+RIGHT, LEFT+LEFT+UP, LEFT+LEFT+DOWN, RIGHT+RIGHT+UP, RIGHT+RIGHT+DOWN]);
-MOVE_DIRECTIONS.set(BISHOP, [UP+LEFT, UP+RIGHT, DOWN+LEFT, DOWN+RIGHT]);
-MOVE_DIRECTIONS.set(ROOK, [UP, RIGHT, DOWN, LEFT]);
-MOVE_DIRECTIONS.set(QUEEN, [UP, RIGHT, DOWN, LEFT, UP+LEFT, UP+RIGHT, DOWN+LEFT, DOWN+RIGHT]);
-MOVE_DIRECTIONS.set(KING, [UP, RIGHT, DOWN, LEFT, UP+LEFT, UP+RIGHT, DOWN+LEFT, DOWN+RIGHT]);
+const MOVE_DIRECTIONS = new Map([
+    [KNIGHT, [UP + UP + LEFT, UP + UP + RIGHT, DOWN + DOWN + LEFT, DOWN + DOWN + RIGHT, LEFT + LEFT + UP, LEFT + LEFT + DOWN, RIGHT + RIGHT + UP, RIGHT + RIGHT + DOWN]],
+    [BISHOP, [UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT]],
+    [ROOK, [UP, RIGHT, DOWN, LEFT]],
+    [QUEEN, [UP, RIGHT, DOWN, LEFT, UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT]],
+    [KING, [UP, RIGHT, DOWN, LEFT, UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT]]
+]);
 
 ////////////////////////////////////////////////////////////////
 //  GLOBAL VARIABLES                                          //
@@ -138,6 +146,17 @@ let FIFTY_PLY = 0;
 ////////////////////////////////////////////////////////////////
 //  FUNCTIONS                                                 //
 ////////////////////////////////////////////////////////////////
+
+function toSquareCoordinates(square: number) {
+    let file = String.fromCharCode('a'.charCodeAt(0) + square % 16);
+    let rank = 8 - Math.floor(square / 16);
+    return file + rank;
+}
+
+function toSquare(squareCoordinates: string): number {
+    return (squareCoordinates.charCodeAt(0) - 'a'.charCodeAt(0))
+        - 16 * (squareCoordinates.charCodeAt(1) - '8'.charCodeAt(0));
+}
 
 function clearBoard() {
     for (let square = 0; square < BOARD.length; square++) {
@@ -180,14 +199,14 @@ function initBoardFromFen(fen: string) {
     }
 
     if (fenActiveColor == 'b') ACTIVE_COLOR = BLACK;
- 
+
     if (fenCastlingRights.includes('K')) CASTLING_RIGHTS = CASTLING_RIGHTS | WHITE_KINGSIDE_CASTLING_BIT;
     if (fenCastlingRights.includes('Q')) CASTLING_RIGHTS = CASTLING_RIGHTS | WHITE_QUEENSIDE_CASTLING_BIT;
     if (fenCastlingRights.includes('k')) CASTLING_RIGHTS = CASTLING_RIGHTS | BLACK_KINGSIDE_CASTLING_BIT;
     if (fenCastlingRights.includes('q')) CASTLING_RIGHTS = CASTLING_RIGHTS | BLACK_QUEENSIDE_CASTLING_BIT;
 
     if (fenEnPassantSquare != '-') {
-        // TODO
+        EN_PASSANT_SQUARE = toSquare(fenEnPassantSquare);
     }
 
     FIFTY_PLY = parseInt(fenFiftyMoveClock, 10);
@@ -201,29 +220,29 @@ function generateMoves(): number[] {
 
         let piece = BOARD[square];
         if (piece == NONE) continue;
-        
+
         let pieceColor = piece & PIECE_COLOR_MASK;
         if (pieceColor != ACTIVE_COLOR) continue;
-        
+
         let pieceType = piece & PIECE_TYPE_MASK;
         if (pieceType == PAWN) {
-            let direction = UP * (1 - pieceColor / 4);
+            let direction = UP * (1 - ACTIVE_COLOR / 4);
 
             // Pawn moves forward
             let targetSquare = square + direction;
             let targetPiece = BOARD[targetSquare];
             if (targetPiece == NONE) {
-                if ((~square & RANK_MASK) == (96 - 10 * pieceColor)) { // Pawn on 7th rank
+                if ((targetSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR / BLACK]) {
                     // Pawn moves one square forward and promotes
-                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NONE, (pieceColor + QUEEN)));
-                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NONE, (pieceColor + ROOK)));
-                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NONE, (pieceColor + BISHOP)));
-                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NONE, (pieceColor + KNIGHT)));
+                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NONE, (ACTIVE_COLOR + QUEEN)));
+                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NONE, (ACTIVE_COLOR + ROOK)));
+                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NONE, (ACTIVE_COLOR + BISHOP)));
+                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE, square, targetSquare, NONE, (ACTIVE_COLOR + KNIGHT)));
                 } else {
                     // Pawn moves one square forward
                     moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE, square, targetSquare));
 
-                    if ((square & RANK_MASK) == (96 - 10 * pieceColor)) { // Pawn on 2nd rank
+                    if ((square & RANK_MASK) == PAWN_STARTING_RANK[ACTIVE_COLOR / BLACK]) {
                         targetSquare += direction;
                         let targetPiece = BOARD[targetSquare];
                         if (targetPiece == NONE) {
@@ -241,12 +260,12 @@ function generateMoves(): number[] {
 
                 targetPiece = BOARD[targetSquare];
                 if (targetPiece != NONE && (targetPiece & PIECE_COLOR_MASK) != ACTIVE_COLOR) {
-                    if ((~square & RANK_MASK) == (96 - 10 * pieceColor)) { // Pawn on 7th rank
+                    if ((targetSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR / BLACK]) {
                         // Pawn capture and promotes
-                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, (pieceColor + QUEEN)));
-                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, (pieceColor + ROOK)));
-                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, (pieceColor + BISHOP)));
-                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, (pieceColor + KNIGHT)));
+                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, (ACTIVE_COLOR + QUEEN)));
+                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, (ACTIVE_COLOR + ROOK)));
+                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, (ACTIVE_COLOR + BISHOP)));
+                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, (ACTIVE_COLOR + KNIGHT)));
                     } else {
                         // Pawn capture
                         moveList.push(createMove(MF_PAWN_CAPTURE, square, targetSquare, targetPiece));
@@ -266,7 +285,7 @@ function generateMoves(): number[] {
                 do {
                     targetSquare += directions[d];
                     if (targetSquare & OUT_OF_BOARD_MASK) break;
-                    
+
                     let targetPiece = BOARD[targetSquare];
                     if (targetPiece != NONE && (targetPiece & PIECE_COLOR_MASK) == ACTIVE_COLOR) break;
 
@@ -276,7 +295,6 @@ function generateMoves(): number[] {
                     }
 
                     moveList.push(createMove(MF_PIECE_NORMAL_MOVE, square, targetSquare));
-
                 } while (slide);
             }
         }
@@ -305,7 +323,7 @@ function makeMove(move: number): void {
     let moveFlags = move & 0xFF;
     let fromSquare = (move >> 8) & 0x7F;
     let toSquare = (move >> 15) & 0x7F;
-    
+
     let piece = BOARD[fromSquare];
     BOARD[fromSquare] = NONE;
     BOARD[toSquare] = piece;
@@ -316,7 +334,14 @@ function makeMove(move: number): void {
     } else {
         EN_PASSANT_SQUARE = SQUARE_NULL;
     }
-    
+
+    // Update FIFTY_PLY
+    if ((moveFlags & PAWN_MOVE_BIT) || (moveFlags & CAPTURE_BIT)) {
+        FIFTY_PLY = 0;
+    } else {
+        FIFTY_PLY++;
+    }
+
     // Pawn promotion
     if (moveFlags & PROMOTION_BIT) {
         let promotedPiece = (move >> 26) & 0x0F;
@@ -342,7 +367,7 @@ function takeback(): void {
     let history = HISTORY_STACK.pop()!;
     EN_PASSANT_SQUARE = history & 0x7F;
     CASTLING_RIGHTS = (history >> 7) & 0x0F;
-    FIFTY_PLY = (history >> 11) & 0x3F;
+    FIFTY_PLY = (history >> 11) & 0x7F;
     ACTIVE_COLOR = BLACK - ACTIVE_COLOR;
 
     let move = MOVE_STACK.pop()!;
@@ -352,7 +377,7 @@ function takeback(): void {
     let capturedPiece = (move >> 22) & 0x0F;
 
     let piece = BOARD[toSquare];
-    
+
     // If last move was a promotion, restore the promoting pawn
     if (moveFlags & PROMOTION_BIT) piece = ACTIVE_COLOR + PAWN;
 
@@ -363,7 +388,7 @@ function takeback(): void {
         KING_SQUARE[ACTIVE_COLOR / BLACK] = fromSquare;
     }
 
-    // If last move was an en passant capture, captured pawn should be restored
+    // If last move was an en passant capture, restore the captured pawn
     if (moveFlags & EN_PASSANT_BIT) {
         let square = (fromSquare & RANK_MASK) + (toSquare & FILE_MASK);
         BOARD[square] = (BLACK - ACTIVE_COLOR) + PAWN;
@@ -372,7 +397,6 @@ function takeback(): void {
 }
 
 function isSquareAttacked(square: number, color: number): boolean {
-    //for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
     for (let pieceType = QUEEN; pieceType >= KING; pieceType--) {
         let piece = color + pieceType;
         if (pieceType == PAWN) {
@@ -410,9 +434,7 @@ function isMoveLegal(move: number): boolean {
 }
 
 function perft(depth: number): number {
-    if (depth == 0) {
-        return 1;
-    }
+    if (depth == 0) return 1;
     let nodes = 0;
     let moveList = generateMoves();
     for (let moveIndex = 0; moveIndex < moveList.length; moveIndex++) {
@@ -445,7 +467,7 @@ function printIsAttackedBoard(color: number) {
     let printableBoard = '';
     for (let square = 0; square < BOARD.length; square++) {
         if (!(square & OUT_OF_BOARD_MASK)) {
-            printableBoard += (isSquareAttacked(square, color)?'A':'.') + " ";
+            printableBoard += (isSquareAttacked(square, color) ? 'A' : '.') + " ";
             if ((square + RIGHT) & 0x08) printableBoard += '\n';
         }
     }
@@ -459,12 +481,6 @@ function printMove(move: number) {
     let capturedPiece = (move >> 22) & 0x0F;
     let promotedPiece = (move >> 26) & 0x0F;
     console.log(PIECE_CODE_TO_PRINTABLE_CHAR.get(BOARD[fromSquare]) + '  moves from ' + toSquareCoordinates(fromSquare) + ' to ' + toSquareCoordinates(toSquare) + ' (capture=' + capturedPiece + '; promote=' + promotedPiece + ')');
-}
-
-function toSquareCoordinates(square: number) {
-    let file = String.fromCharCode(97 + square % 16);
-    let rank = 8 - Math.floor(square / 16);
-    return file + rank;
 }
 
 ////////////////////////////////////////////////////////////////
