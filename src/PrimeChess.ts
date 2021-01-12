@@ -142,7 +142,7 @@ const MOVE_DIRECTIONS = new Map([
 let BOARD = new Uint8Array(128);
 let ACTIVE_COLOR = WHITE;
 let MOVE_STACK: number[] = [];
-let HISTORY_STACK: number[] = []; // Used in takeback() to restore the previous board state
+let HISTORY_STACK: number[] = [];
 let EN_PASSANT_SQUARE = SQUARE_NULL;
 let CASTLING_RIGHTS = [NULL, NULL];
 let KING_SQUARE = [SQUARE_NULL, SQUARE_NULL];
@@ -360,12 +360,10 @@ function makeMove(move: number): void {
     BOARD[fromSquare] = NULL;
     BOARD[toSquare] = piece;
 
-    // Reset PLY_CLOCK if pawn move or capture
     if (moveFlags & PAWN_OR_CAPTURE_BIT) {
         PLY_CLOCK = 0;
     }
 
-    // Pawn move
     if ((piece & PIECE_TYPE_MASK) == PAWN) {
         if (moveFlags & PAWN_PUSH_2_SQUARES_BIT) {
             EN_PASSANT_SQUARE = (fromSquare + toSquare) / 2;
@@ -373,12 +371,10 @@ function makeMove(move: number): void {
             let promotedPiece = (move >> 26) & 0x0F;
             BOARD[toSquare] = promotedPiece;
         } else if (moveFlags & EN_PASSANT_BIT) {
-            // Remove captured pawn
             BOARD[(fromSquare & RANK_MASK) + (toSquare & FILE_MASK)] = NULL;
         }
     }
 
-    // King move
     if ((piece & PIECE_TYPE_MASK) == KING) {
         KING_SQUARE[ACTIVE_COLOR] = toSquare;
         CASTLING_RIGHTS[ACTIVE_COLOR] = NULL;
@@ -392,20 +388,17 @@ function makeMove(move: number): void {
         }
     }
 
-    if(fromSquare == A1 || toSquare == A1) CASTLING_RIGHTS[WHITE] &= KINGSIDE_CASTLING_BIT;
-    if(fromSquare == H1 || toSquare == H1) CASTLING_RIGHTS[WHITE] &= QUEENSIDE_CASTLING_BIT;
-    if(fromSquare == A8 || toSquare == A8) CASTLING_RIGHTS[BLACK] &= KINGSIDE_CASTLING_BIT;
-    if(fromSquare == H8 || toSquare == H8) CASTLING_RIGHTS[BLACK] &= QUEENSIDE_CASTLING_BIT;
+    if (fromSquare == A1 || toSquare == A1) CASTLING_RIGHTS[WHITE] &= KINGSIDE_CASTLING_BIT;
+    if (fromSquare == H1 || toSquare == H1) CASTLING_RIGHTS[WHITE] &= QUEENSIDE_CASTLING_BIT;
+    if (fromSquare == A8 || toSquare == A8) CASTLING_RIGHTS[BLACK] &= KINGSIDE_CASTLING_BIT;
+    if (fromSquare == H8 || toSquare == H8) CASTLING_RIGHTS[BLACK] &= QUEENSIDE_CASTLING_BIT;
 
-    // Switch side to move
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 }
 
 function takeback(): void {
-    // Restore side to move
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 
-    // Restore game state from history
     let history = HISTORY_STACK.pop()!;
     EN_PASSANT_SQUARE = history & 0x7F;
     CASTLING_RIGHTS[WHITE] = (history >> 7) & 0x03;
@@ -421,13 +414,11 @@ function takeback(): void {
 
     let piece = BOARD[toSquare];
 
-    // If last move was a promotion, restore the promoting pawn
     if (moveFlags & PROMOTION_BIT) piece = makePiece(ACTIVE_COLOR, PAWN);
 
     BOARD[fromSquare] = piece;
     BOARD[toSquare] = capturedPiece;
 
-    // If last move was an en passant capture, restore the captured pawn
     if (moveFlags & EN_PASSANT_BIT) {
         BOARD[(fromSquare & RANK_MASK) + (toSquare & FILE_MASK)] = makePiece(1 - ACTIVE_COLOR, PAWN);
     }
@@ -512,15 +503,6 @@ function printBoard() {
     console.log(printableBoard);
 }
 
-function printMove(move: number) {
-    let moveFlags = move & 0x0F;
-    let fromSquare = (move >> 8) & 0x7F;
-    let toSquare = (move >> 15) & 0x7F;
-    let capturedPiece = (move >> 22) & 0x0F;
-    let promotedPiece = (move >> 26) & 0x0F;
-    console.log(PIECE_CODE_TO_PRINTABLE_CHAR.get(BOARD[fromSquare]) + '  moves from ' + toSquareCoordinates(fromSquare) + ' to ' + toSquareCoordinates(toSquare) + ' (capture=' + capturedPiece + '; promote=' + promotedPiece + ')');
-}
-
 function testPerft() {
     let perftTests = new Map<string, number[]>();
     perftTests.set('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', [1, 20, 400, 8902, 197281, 4865609, 119060324]); // Starting position
@@ -558,4 +540,3 @@ function bench() {
 
 //testPerft();
 //bench();
-
