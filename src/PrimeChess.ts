@@ -136,6 +136,25 @@ const MOVE_DIRECTIONS = new Map([
 ]);
 
 ////////////////////////////////////////////////////////////////
+//  CUSTOM TYPES                                              //
+////////////////////////////////////////////////////////////////
+
+type Move = {
+    moveFlags: number;
+    fromSquare: number;
+    toSquare: number;
+    capturedPiece?: number;
+    promotedPiece?: number;
+};
+
+type HistoryEntry = {
+    enPassantSquare: number;
+    whiteCastlingRights: number;
+    blackCastlingRights: number;
+    plyClock: number;
+}
+
+////////////////////////////////////////////////////////////////
 //  GLOBAL VARIABLES                                          //
 ////////////////////////////////////////////////////////////////
 
@@ -316,7 +335,7 @@ function generateMoves(): number[] {
 
             if (!isSquareAttacked(kingSquare, 1 - ACTIVE_COLOR)
                 && !isSquareAttacked(kingSquare + RIGHT, 1 - ACTIVE_COLOR)) {
-                moveList.push(createMove(MF_KINGSIDE_CASTLING, kingSquare, kingSquare + RIGHT + RIGHT))
+                moveList.push(createMove(MF_KINGSIDE_CASTLING, kingSquare, kingSquare + RIGHT + RIGHT));
             }
         }
     }
@@ -329,7 +348,7 @@ function generateMoves(): number[] {
 
             if (!isSquareAttacked(kingSquare, 1 - ACTIVE_COLOR)
                 && !isSquareAttacked(kingSquare + LEFT, 1 - ACTIVE_COLOR)) {
-                moveList.push(createMove(MF_QUEENSIDE_CASTLING, kingSquare, kingSquare + LEFT + LEFT))
+                moveList.push(createMove(MF_QUEENSIDE_CASTLING, kingSquare, kingSquare + LEFT + LEFT));
             }
         }
     }
@@ -341,20 +360,40 @@ function createMove(moveFlags: number, fromSquare: number, toSquare: number, cap
     return moveFlags | (fromSquare << 8) | (toSquare << 15) | (capturedPiece << 22) | (promotedPiece << 26);
 }
 
+function decodeMove(move: number): Move {
+    return {
+        moveFlags: move & 0xFF,
+        fromSquare: (move >> 8) & 0x7F,
+        toSquare: (move >> 15) & 0x7F,
+        capturedPiece: (move >> 22) & 0x0F,
+        promotedPiece: (move >> 26) & 0x0F
+    };
+}
+
 function createHistory(enPassantSquare: number, castlingRights: number[], fiftyMoveClock: number): number {
     return enPassantSquare | (castlingRights[WHITE] << 7) | (castlingRights[BLACK] << 9) | (fiftyMoveClock << 11);
 }
 
-function makeMove(move: number): void {
-    MOVE_STACK.push(move);
+function decodeHistory(history: number): HistoryEntry {
+    return {
+        enPassantSquare: history & 0x7F,
+        whiteCastlingRights: (history >> 7) & 0x03,
+        blackCastlingRights: (history >> 9) & 0x03,
+        plyClock: (history >> 11) & 0x7F
+    };
+}
+
+function makeMove(encodedMove: number): void {
+    MOVE_STACK.push(encodedMove);
     HISTORY_STACK.push(createHistory(EN_PASSANT_SQUARE, CASTLING_RIGHTS, PLY_CLOCK));
     EN_PASSANT_SQUARE = SQUARE_NULL;
     PLY_CLOCK++;
     MOVE_NUMBER += ACTIVE_COLOR;
 
-    let moveFlags = move & 0xFF;
-    let fromSquare = (move >> 8) & 0x7F;
-    let toSquare = (move >> 15) & 0x7F;
+    let move = decodeMove(encodedMove);
+    let moveFlags = move.moveFlags;
+    let fromSquare = move.fromSquare;
+    let toSquare = move.toSquare;
 
     let piece = BOARD[fromSquare];
     BOARD[fromSquare] = NULL;
@@ -368,7 +407,7 @@ function makeMove(move: number): void {
         if (moveFlags & PAWN_PUSH_2_SQUARES_BIT) {
             EN_PASSANT_SQUARE = (fromSquare + toSquare) / 2;
         } else if (moveFlags & PROMOTION_BIT) {
-            let promotedPiece = (move >> 26) & 0x0F;
+            let promotedPiece = move.promotedPiece!;
             BOARD[toSquare] = promotedPiece;
         } else if (moveFlags & EN_PASSANT_BIT) {
             BOARD[(fromSquare & RANK_MASK) + (toSquare & FILE_MASK)] = NULL;
@@ -399,18 +438,18 @@ function makeMove(move: number): void {
 function takeback(): void {
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 
-    let history = HISTORY_STACK.pop()!;
-    EN_PASSANT_SQUARE = history & 0x7F;
-    CASTLING_RIGHTS[WHITE] = (history >> 7) & 0x03;
-    CASTLING_RIGHTS[BLACK] = (history >> 9) & 0x03;
-    PLY_CLOCK = (history >> 11) & 0x7F;
+    let history = decodeHistory(HISTORY_STACK.pop()!);
+    EN_PASSANT_SQUARE = history.enPassantSquare;
+    CASTLING_RIGHTS[WHITE] = history.whiteCastlingRights;
+    CASTLING_RIGHTS[BLACK] = history.blackCastlingRights;
+    PLY_CLOCK = history.plyClock;
     MOVE_NUMBER -= ACTIVE_COLOR;
 
-    let move = MOVE_STACK.pop()!;
-    let moveFlags = move & 0xFF;
-    let fromSquare = (move >> 8) & 0x7F;
-    let toSquare = (move >> 15) & 0x7F;
-    let capturedPiece = (move >> 22) & 0x0F;
+    let move = decodeMove(MOVE_STACK.pop()!);
+    let moveFlags = move.moveFlags;
+    let fromSquare = move.fromSquare;
+    let toSquare = move.toSquare;
+    let capturedPiece = move.capturedPiece!;
 
     let piece = BOARD[toSquare];
 
@@ -538,5 +577,5 @@ function bench() {
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-testPerft();
+//testPerft();
 //bench();
