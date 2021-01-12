@@ -1,17 +1,17 @@
 //
-//    +---------------------------------------------------------------+
-//    |                   0x88 BOARD REPRESENTATION                   |
-//    +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
-//  8 |  0|  1|  2|  3|  4|  5|  6|  7|  8|  9| 10| 11| 12| 13| 14| 15|
-//  7 | 16| 17| 18| 19| 20| 21| 22| 23| 24| 25| 26| 27| 28| 29| 30| 31|
-//  6 | 32| 33| 34| 35| 36| 37| 38| 39| 40| 41| 42| 43| 44| 45| 46| 47|
-//  5 | 48| 49| 50| 51| 52| 53| 54| 55| 56| 57| 58| 59| 60| 61| 62| 63|
-//  4 | 64| 65| 66| 67| 68| 69| 70| 71| 72| 73| 74| 75| 76| 77| 78| 79|
-//  3 | 80| 81| 82| 83| 84| 85| 86| 87| 88| 89| 90| 91| 92| 93| 94| 95|
-//  2 | 96| 97| 98| 99|100|101|102|103|104|105|106|107|108|109|110|111|
-//  1 |112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|
-//    +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
-//      A   B   C   D   E   F   G   H
+//    +-----------------------------------------------+
+//    |           0x88 BOARD REPRESENTATION           |
+//    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+//  8 |00|01|02|03|04|05|06|07|08|09|0A|0B|0C|0D|0E|0F|
+//  7 |10|11|12|13|14|15|16|17|18|19|1A|1B|1C|1D|1E|1F|
+//  6 |20|21|22|23|24|25|26|27|28|29|2A|2B|2C|2D|2E|2F|
+//  5 |30|31|32|33|34|35|36|37|38|39|3A|3B|3C|3D|3E|3F|
+//  4 |40|41|42|43|44|45|46|47|48|49|4A|4B|4C|4D|4E|4F|
+//  3 |50|51|52|53|54|55|56|57|58|59|5A|5B|5C|5D|5E|5F|
+//  2 |60|61|62|63|64|65|66|67|68|69|6A|6B|6C|6D|6E|6F|
+//  1 |70|71|72|73|74|75|76|77|78|79|7A|7B|7C|7D|7E|7F|
+//    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+//      A  B  C  D  E  F  G  H
 //
 //  +---------------------------------+   +------------------------------------+
 //  |          PIECE ENCODING         |   |             MOVE FLAGS             |
@@ -45,6 +45,8 @@
 //  CONSTANTS                                                 //
 ////////////////////////////////////////////////////////////////
 
+const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
 const NULL = 0;
 
 const KING = 1;
@@ -76,10 +78,12 @@ const RIGHT = +1;
 const DOWN = +16;
 const LEFT = -1;
 
+const PIECE_COLOR_MASK = 0x08;
+const PIECE_TYPE_MASK = 0x07;
+const PIECE_SLIDER_MASK = 0x04;
 const OUT_OF_BOARD_MASK = 0x88;
-const SQUARE_NULL = 0x7F;
-const RANK_MASK = 0xF0;
 const FILE_MASK = 0x0F;
+const RANK_MASK = 0xF0;
 
 const RANK_1 = 0x70;
 const RANK_2 = 0x60;
@@ -88,9 +92,11 @@ const RANK_8 = 0x00;
 const PAWN_STARTING_RANK = [RANK_2, RANK_7];
 const PAWN_PROMOTING_RANK = [RANK_8, RANK_1];
 
-const PIECE_COLOR_MASK = 0x08;
-const PIECE_TYPE_MASK = 0x07;
-const PIECE_SLIDER_MASK = 0x04;
+const SQUARE_NULL = 0x7F;
+const A1 = 0x70;
+const H1 = 0x77;
+const A8 = 0x00;
+const H8 = 0x07;
 
 const KINGSIDE_CASTLING_BIT = 0x01;
 const QUEENSIDE_CASTLING_BIT = 0x02;
@@ -140,7 +146,8 @@ let HISTORY_STACK: number[] = []; // Used in takeback() to restore the previous 
 let EN_PASSANT_SQUARE = SQUARE_NULL;
 let CASTLING_RIGHTS = [NULL, NULL];
 let KING_SQUARE = [SQUARE_NULL, SQUARE_NULL];
-let FIFTY_PLY = 0;
+let PLY_CLOCK = 0;
+let MOVE_NUMBER = 1;
 
 ////////////////////////////////////////////////////////////////
 //  FUNCTIONS                                                 //
@@ -155,8 +162,8 @@ function getPieceColor(piece: number) {
 }
 
 function toSquareCoordinates(square: number) {
-    let file = String.fromCharCode('a'.charCodeAt(0) + square % 16);
-    let rank = 8 - Math.floor(square / 16);
+    let file = String.fromCharCode('a'.charCodeAt(0) + (square & FILE_MASK));
+    let rank = 8 - ((square & RANK_MASK) >> 4);
     return file + rank;
 }
 
@@ -175,7 +182,8 @@ function clearBoard() {
     EN_PASSANT_SQUARE = SQUARE_NULL;
     CASTLING_RIGHTS = [NULL, NULL];
     KING_SQUARE = [SQUARE_NULL, SQUARE_NULL];
-    FIFTY_PLY = 0;
+    PLY_CLOCK = 0;
+    MOVE_NUMBER = 1;
 }
 
 function initBoardFromFen(fen: string) {
@@ -185,7 +193,7 @@ function initBoardFromFen(fen: string) {
     let fenActiveColor = fenParts[1];
     let fenCastlingRights = fenParts[2];
     let fenEnPassantSquare = fenParts[3];
-    let fenFiftyMoveClock = fenParts[4];
+    let fenHalfMoveClock = fenParts[4];
     let fenFullMoveCount = fenParts[5];
 
     clearBoard();
@@ -207,16 +215,18 @@ function initBoardFromFen(fen: string) {
 
     if (fenActiveColor == 'b') ACTIVE_COLOR = BLACK;
 
-    if (fenCastlingRights.includes('K')) CASTLING_RIGHTS[WHITE] = CASTLING_RIGHTS[WHITE] | KINGSIDE_CASTLING_BIT;
-    if (fenCastlingRights.includes('Q')) CASTLING_RIGHTS[WHITE] = CASTLING_RIGHTS[WHITE] | QUEENSIDE_CASTLING_BIT;
-    if (fenCastlingRights.includes('k')) CASTLING_RIGHTS[BLACK] = CASTLING_RIGHTS[BLACK] | KINGSIDE_CASTLING_BIT;
-    if (fenCastlingRights.includes('q')) CASTLING_RIGHTS[BLACK] = CASTLING_RIGHTS[BLACK] | QUEENSIDE_CASTLING_BIT;
+    if (fenCastlingRights.includes('K')) CASTLING_RIGHTS[WHITE] |= KINGSIDE_CASTLING_BIT;
+    if (fenCastlingRights.includes('Q')) CASTLING_RIGHTS[WHITE] |= QUEENSIDE_CASTLING_BIT;
+    if (fenCastlingRights.includes('k')) CASTLING_RIGHTS[BLACK] |= KINGSIDE_CASTLING_BIT;
+    if (fenCastlingRights.includes('q')) CASTLING_RIGHTS[BLACK] |= QUEENSIDE_CASTLING_BIT;
 
     if (fenEnPassantSquare != '-') {
         EN_PASSANT_SQUARE = toSquare(fenEnPassantSquare);
     }
 
-    FIFTY_PLY = parseInt(fenFiftyMoveClock, 10);
+    PLY_CLOCK = parseInt(fenHalfMoveClock, 10);
+
+    MOVE_NUMBER = parseInt(fenFullMoveCount, 10);
 }
 
 function generateMoves(): number[] {
@@ -286,10 +296,10 @@ function generateMoves(): number[] {
                     if (targetSquare & OUT_OF_BOARD_MASK) break;
 
                     let targetPiece = BOARD[targetSquare];
-                    if (targetPiece != NULL && getPieceColor(targetPiece) == ACTIVE_COLOR) break; //TODO modify this
-
                     if (targetPiece != NULL) {
-                        moveList.push(createMove(MF_PIECE_CAPTURE_MOVE, square, targetSquare, targetPiece));
+                        if (getPieceColor(targetPiece) != ACTIVE_COLOR) {
+                            moveList.push(createMove(MF_PIECE_CAPTURE_MOVE, square, targetSquare, targetPiece));
+                        }
                         break;
                     }
 
@@ -337,9 +347,10 @@ function createHistory(enPassantSquare: number, castlingRights: number[], fiftyM
 
 function makeMove(move: number): void {
     MOVE_STACK.push(move);
-    HISTORY_STACK.push(createHistory(EN_PASSANT_SQUARE, CASTLING_RIGHTS, FIFTY_PLY));
+    HISTORY_STACK.push(createHistory(EN_PASSANT_SQUARE, CASTLING_RIGHTS, PLY_CLOCK));
     EN_PASSANT_SQUARE = SQUARE_NULL;
-    FIFTY_PLY++;
+    PLY_CLOCK++;
+    MOVE_NUMBER += ACTIVE_COLOR;
 
     let moveFlags = move & 0xFF;
     let fromSquare = (move >> 8) & 0x7F;
@@ -349,9 +360,9 @@ function makeMove(move: number): void {
     BOARD[fromSquare] = NULL;
     BOARD[toSquare] = piece;
 
-    // Reset FIFTY_PLY if pawn move or capture
+    // Reset PLY_CLOCK if pawn move or capture
     if (moveFlags & PAWN_OR_CAPTURE_BIT) {
-        FIFTY_PLY = 0;
+        PLY_CLOCK = 0;
     }
 
     // Pawn move
@@ -381,10 +392,10 @@ function makeMove(move: number): void {
         }
     }
 
-    if(fromSquare == 112 || toSquare == 112) CASTLING_RIGHTS[WHITE] = 1 & CASTLING_RIGHTS[WHITE];
-    if(fromSquare == 119 || toSquare == 119) CASTLING_RIGHTS[WHITE] = 2 & CASTLING_RIGHTS[WHITE];
-    if(fromSquare == 0 || toSquare == 0) CASTLING_RIGHTS[BLACK] = 1 & CASTLING_RIGHTS[BLACK];
-    if(fromSquare == 7 || toSquare == 7) CASTLING_RIGHTS[BLACK] = 2 & CASTLING_RIGHTS[BLACK];
+    if(fromSquare == A1 || toSquare == A1) CASTLING_RIGHTS[WHITE] &= KINGSIDE_CASTLING_BIT;
+    if(fromSquare == H1 || toSquare == H1) CASTLING_RIGHTS[WHITE] &= QUEENSIDE_CASTLING_BIT;
+    if(fromSquare == A8 || toSquare == A8) CASTLING_RIGHTS[BLACK] &= KINGSIDE_CASTLING_BIT;
+    if(fromSquare == H8 || toSquare == H8) CASTLING_RIGHTS[BLACK] &= QUEENSIDE_CASTLING_BIT;
 
     // Switch side to move
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
@@ -399,7 +410,8 @@ function takeback(): void {
     EN_PASSANT_SQUARE = history & 0x7F;
     CASTLING_RIGHTS[WHITE] = (history >> 7) & 0x03;
     CASTLING_RIGHTS[BLACK] = (history >> 9) & 0x03;
-    FIFTY_PLY = (history >> 11) & 0x7F;
+    PLY_CLOCK = (history >> 11) & 0x7F;
+    MOVE_NUMBER -= ACTIVE_COLOR;
 
     let move = MOVE_STACK.pop()!;
     let moveFlags = move & 0xFF;
@@ -493,21 +505,9 @@ function perft(depth: number): number {
 function printBoard() {
     let printableBoard = '';
     for (let square = 0; square < BOARD.length; square++) {
-        if (!(square & OUT_OF_BOARD_MASK)) {
-            printableBoard += PIECE_CODE_TO_PRINTABLE_CHAR.get(BOARD[square]) + " ";
-            if ((square + RIGHT) & 0x08) printableBoard += '\n';
-        }
-    }
-    console.log(printableBoard);
-}
-
-function printIsAttackedBoard(color: number) {
-    let printableBoard = '';
-    for (let square = 0; square < BOARD.length; square++) {
-        if (!(square & OUT_OF_BOARD_MASK)) {
-            printableBoard += (isSquareAttacked(square, color) ? 'A' : '.') + " ";
-            if ((square + RIGHT) & 0x08) printableBoard += '\n';
-        }
+        if (square & OUT_OF_BOARD_MASK) continue;
+        printableBoard += PIECE_CODE_TO_PRINTABLE_CHAR.get(BOARD[square]) + " ";
+        if ((square + RIGHT) & 0x08) printableBoard += '\n';
     }
     console.log(printableBoard);
 }
@@ -543,16 +543,19 @@ function testPerft() {
     });
 }
 
+function bench() {
+    initBoardFromFen(STARTING_FEN);
+    for (let run = 0; run < 5; run++) {
+        console.time('perft');
+        console.log(perft(6));
+        console.timeEnd('perft');
+    }
+}
+
 ////////////////////////////////////////////////////////////////
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
 //testPerft();
+//bench();
 
-const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-initBoardFromFen(STARTING_FEN);
-for (let run = 0; run < 5; run++) {
-    console.time('perft');
-    console.log(perft(6));
-    console.timeEnd('perft');
-}
