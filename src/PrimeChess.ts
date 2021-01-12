@@ -477,8 +477,8 @@ function perft(depth: number): number {
     if (depth == 0) return 1;
     let nodes = 0;
     let moveList = generateMoves();
-    for (let moveIndex = 0; moveIndex < moveList.length; moveIndex++) {
-        let move = moveList[moveIndex];
+    for (let m = 0; m < moveList.length; m++) {
+        let move = moveList[m];
         if (isMoveLegal(move)) {
             makeMove(move);
             let pnodes = perft(depth - 1);
@@ -538,5 +538,5 @@ function bench() {
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-//testPerft();
+testPerft();
 //bench();
