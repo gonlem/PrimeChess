@@ -4,8 +4,8 @@ function benchBoardLoop() {
     for (let run = 0; run < 5; run++) {
         console.time('bench 1');
         let count1 = 0;
-        for (let i = 0; i < 10000000; i++) {
-            for (let square = 0; square < 128; square++) {
+        for (let i = 0; i < 100000000; i++) {
+            for (let square = 0; square < 120; square++) {
                 if (square & OUT_OF_BOARD_MASK) continue;
                 if (square == 68) count1++;
             }
@@ -15,14 +15,36 @@ function benchBoardLoop() {
 
         console.time('bench 2');
         let count2 = 0;
-        for (let i = 0; i < 10000000; i++) {
+        for (let i = 0; i < 100000000; i++) {
             for (let square = 0; square < 64; square++) {
-                let square88 = square + (square & ~7);
+                let square88 = ((square << 1) & 0x70) | (square & 0x07);
                 if (square88 == 68) count2++;
             }
         }
         console.log(count2);
         console.timeEnd('bench 2');
+
+        console.time('bench 3');
+        let count3 = 0;
+        for (let i = 0; i < 100000000; i++) {
+            for (let square = 0; square < 64; square++) {
+                let square88 = square + (square & 0x38);
+                if (square88 == 68) count3++;
+            }
+        }
+        console.log(count3);
+        console.timeEnd('bench 3');
+
+        console.time('bench 4');
+        let count4 = 0;
+        for (let i = 0; i < 100000000; i++) {
+            for (let square = 0; square < 64; square++) {
+                let square88 = square + (square & ~7);
+                if (square88 == 68) count4++;
+            }
+        }
+        console.log(count4);
+        console.timeEnd('bench 4');
     }
 }
 
@@ -39,11 +61,11 @@ function benchPawnStartingRankDetection() {
         for (let i = 0; i < 10000000; i++) {
             for (let square = 0; square < 128; square++) {
                 if (square & OUT_OF_BOARD_MASK) continue;
-                if ((~square & RANK_MASK) == (96 - 10 * ACTIVE_COLOR)) {
+                if ((~square & RANK_MASK) == (96 - 80 * ACTIVE_COLOR)) {
                     count1++;
                 }
             }
-            ACTIVE_COLOR = 8 - ACTIVE_COLOR;
+            ACTIVE_COLOR = 1 - ACTIVE_COLOR;
         }
         console.log(count1);
         console.timeEnd('bench 1');
@@ -54,11 +76,11 @@ function benchPawnStartingRankDetection() {
         for (let i = 0; i < 10000000; i++) {
             for (let square = 0; square < 128; square++) {
                 if (square & OUT_OF_BOARD_MASK) continue;
-                if ((square & RANK_MASK) == PAWN_STARTING_RANK[ACTIVE_COLOR / 8]) {
+                if ((square & RANK_MASK) == PAWN_STARTING_RANK[ACTIVE_COLOR]) {
                     count2++;
                 }
             }
-            ACTIVE_COLOR = 8 - ACTIVE_COLOR;
+            ACTIVE_COLOR = 1 - ACTIVE_COLOR;
         }
         console.log(count2);
         console.timeEnd('bench 2');
@@ -140,7 +162,7 @@ function benchMakePiece() {
     }
 }
 
-//benchBoardLoop();
+benchBoardLoop();
 //benchPawnStartingRankDetection();
 //benchBoardArray();
 //benchMakePiece();

@@ -220,7 +220,7 @@ function initBoardFromFen(fen: string) {
     for (let c of fenBoard) {
         if (c == '/') {
             index += 8;
-        } else if (isNaN(parseInt(c))) {
+        } else if (isNaN(parseInt(c, 10))) {
             let piece = FEN_CHAR_TO_PIECE_CODE.get(c)!;
             if ((piece & PIECE_TYPE_MASK) == KING) {
                 KING_SQUARE[getPieceColor(piece)] = index;
@@ -228,7 +228,7 @@ function initBoardFromFen(fen: string) {
             BOARD[index] = piece;
             index += 1;
         } else {
-            index += parseInt(c);
+            index += parseInt(c, 10);
         }
     }
 
@@ -251,8 +251,8 @@ function initBoardFromFen(fen: string) {
 function generateMoves(): number[] {
     let moveList: number[] = [];
 
-    for (let square = 0; square < BOARD.length; square++) {
-        if (square & OUT_OF_BOARD_MASK) continue;
+    for (let s = 0; s < 64; s++) {
+        let square = s + (s & 0x38);
 
         let piece = BOARD[square];
         if (piece == NULL) continue;
@@ -407,8 +407,7 @@ function makeMove(encodedMove: number): void {
         if (moveFlags & PAWN_PUSH_2_SQUARES_BIT) {
             EN_PASSANT_SQUARE = (fromSquare + toSquare) / 2;
         } else if (moveFlags & PROMOTION_BIT) {
-            let promotedPiece = move.promotedPiece!;
-            BOARD[toSquare] = promotedPiece;
+            BOARD[toSquare] = move.promotedPiece!;
         } else if (moveFlags & EN_PASSANT_BIT) {
             BOARD[(fromSquare & RANK_MASK) + (toSquare & FILE_MASK)] = NULL;
         }
@@ -505,25 +504,17 @@ function isSquareAttacked(square: number, color: number): boolean {
     return false;
 }
 
-function isMoveLegal(move: number): boolean {
-    makeMove(move);
-    let isLegal = !isSquareAttacked(KING_SQUARE[1 - ACTIVE_COLOR], ACTIVE_COLOR);
-    takeback();
-    return isLegal;
-}
-
 function perft(depth: number): number {
     if (depth == 0) return 1;
     let nodes = 0;
     let moveList = generateMoves();
     for (let m = 0; m < moveList.length; m++) {
         let move = moveList[m];
-        if (isMoveLegal(move)) {
-            makeMove(move);
-            let pnodes = perft(depth - 1);
-            nodes += pnodes;
-            takeback();
+        makeMove(move);
+        if (!isSquareAttacked(KING_SQUARE[1 - ACTIVE_COLOR], ACTIVE_COLOR)) {
+            nodes += perft(depth - 1);
         }
+        takeback();
     }
     return nodes;
 }
@@ -545,8 +536,8 @@ function printBoard() {
 function testPerft() {
     let perftTests = new Map<string, number[]>();
     perftTests.set('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', [1, 20, 400, 8902, 197281, 4865609, 119060324]); // Starting position
-    perftTests.set('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -', [1, 48, 2039, 97862, 4085603, 193690690]); // Position 2
-    perftTests.set('8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 0', [1, 14, 191, 2812, 43238, 674624, 11030083, 178633661]); // Position 3
+    perftTests.set('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1', [1, 48, 2039, 97862, 4085603, 193690690]); // Position 2
+    perftTests.set('8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1', [1, 14, 191, 2812, 43238, 674624, 11030083, 178633661]); // Position 3
     perftTests.set('r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1', [1, 6, 264, 9467, 422333, 15833292]); // Position 4
     perftTests.set('r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1', [1, 6, 264, 9467, 422333, 15833292]); // Position 4 mirrored
     perftTests.set('rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8', [1, 44, 1486, 62379, 2103487, 89941194]); // Position 5
@@ -565,11 +556,19 @@ function testPerft() {
 }
 
 function bench() {
-    initBoardFromFen(STARTING_FEN);
-    for (let run = 0; run < 5; run++) {
-        console.time('perft');
-        console.log(perft(6));
-        console.timeEnd('perft');
+    let benchPositions = [
+        'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+        'r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1',
+        '8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 0',
+        'rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8'
+    ];
+    for (let run = 1; run <= 5; run++) {
+        console.time('Run ' + run);
+        for (let p = 0; p < benchPositions.length; p++) {
+            initBoardFromFen(benchPositions[p]);
+            perft(5);
+        }
+        console.timeEnd('Run ' + run);
     }
 }
 
@@ -577,5 +576,5 @@ function bench() {
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-//testPerft();
 //bench();
+testPerft();
