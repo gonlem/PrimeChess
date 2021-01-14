@@ -171,6 +171,7 @@ function benchMovePieceInPieceList() {
     let squareList2 = [98, 99, 100, 101];
     let squareList3 = new Uint8Array(10);
     squareList3.set([98, 99, 100, 101]);
+    let squareList4 = [98, 99, 100, 101];
 
     function movePieceInList1(fromSquare: number, toSquare: number) {
         squareList1.delete(fromSquare);
@@ -194,7 +195,11 @@ function benchMovePieceInPieceList() {
             }
         }
     }
-    
+
+    function movePieceInList4(fromSquare: number, toSquare: number) {
+        squareList4[squareList4.indexOf(fromSquare)] = toSquare;
+    }
+
     for (let run = 0; run < 5; run++) {
         console.time('bench 1');
         let count1 = 0;
@@ -228,6 +233,17 @@ function benchMovePieceInPieceList() {
         }
         console.log(count3);
         console.timeEnd('bench 3');
+
+        console.time('bench 4');
+        let count4 = 0;
+        for (let i = 0; i < 100000000; i++) {
+            movePieceInList4(99, 67);
+            movePieceInList4(100, 68);
+            movePieceInList4(67, 99);
+            movePieceInList4(68, 100);
+        }
+        console.log(count4);
+        console.timeEnd('bench 4');
     }
 }
 
@@ -238,6 +254,7 @@ function benchRemovePieceInPieceList() {
     squareList1.add(100);
     squareList1.add(101);
     let squareList2 = [98, 99, 100, 101];
+    let squareList3 = [98, 99, 100, 101];
 
     function removePieceInList1(square: number) {
         squareList1.delete(square);
@@ -260,7 +277,18 @@ function benchRemovePieceInPieceList() {
     function takebackRemovalInPieceList2(square: number) {
         squareList2.push(square);
     }
-    
+
+    function removePieceInList3(square: number) {
+        let lastElement = squareList3.pop()!;
+        if (lastElement != square) {
+            squareList3[squareList3.indexOf(square)] = lastElement;
+        }
+    }
+
+    function takebackRemovalInPieceList3(square: number) {
+        squareList3.push(square);
+    }
+
     for (let run = 0; run < 5; run++) {
         console.time('bench 1');
         let count1 = 0;
@@ -285,6 +313,18 @@ function benchRemovePieceInPieceList() {
         }
         console.log(count2);
         console.timeEnd('bench 2');
+
+        console.time('bench 3');
+        let count3 = 0;
+        for (let i = 0; i < 100000000; i++) {
+            removePieceInList3(99);
+            if (squareList3.length == 3) count3++;
+            removePieceInList3(100);
+            takebackRemovalInPieceList3(99);
+            takebackRemovalInPieceList3(100);
+        }
+        console.log(count3);
+        console.timeEnd('bench 3');
     }
 }
 
@@ -292,5 +332,5 @@ function benchRemovePieceInPieceList() {
 //benchPawnStartingRankDetection();
 //benchBoardArray();
 //benchMakePiece();
-//benchMovePieceInPieceList();
-benchRemovePieceInPieceList();
+benchMovePieceInPieceList();
+//benchRemovePieceInPieceList();

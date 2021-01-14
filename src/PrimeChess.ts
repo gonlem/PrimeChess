@@ -192,8 +192,6 @@ let PIECE_LIST: number[][][] = [
     ]
 ]
 
-const ENABLE_PIECE_LIST = false;
-
 ////////////////////////////////////////////////////////////////
 //  FUNCTIONS                                                 //
 ////////////////////////////////////////////////////////////////
@@ -202,14 +200,12 @@ function movePiece(fromSquare: number, toSquare: number) {
     let piece = BOARD[fromSquare];
     BOARD[fromSquare] = NULL;
     BOARD[toSquare] = piece;
-    
-    if (ENABLE_PIECE_LIST) {
-        let squareList = PIECE_LIST[getPieceColor(piece)][getPieceType(piece)];
-        for (let i = 0; i < squareList.length; i++) {
-            if (squareList[i] == fromSquare) {
-                squareList[i] = toSquare;
-                break;
-            }
+
+    let squareList = PIECE_LIST[getPieceColor(piece)][getPieceType(piece)];
+    for (let i = 0; i < squareList.length; i++) {
+        if (squareList[i] == fromSquare) {
+            squareList[i] = toSquare;
+            break;
         }
     }
 }
@@ -217,23 +213,19 @@ function movePiece(fromSquare: number, toSquare: number) {
 function addPiece(piece: number, square: number) {
     BOARD[square] = piece;
 
-    if (ENABLE_PIECE_LIST) {
-        PIECE_LIST[getPieceColor(piece)][getPieceType(piece)].push(square);
-    }
+    PIECE_LIST[getPieceColor(piece)][getPieceType(piece)].push(square);
 }
 
 function removePiece(square: number) {
     let piece = BOARD[square];
     BOARD[square] = NULL;
 
-    if (ENABLE_PIECE_LIST) {
-        let squareList = PIECE_LIST[getPieceColor(piece)][getPieceType(piece)];
-        let lastElement = squareList.pop()!;
-        for (let i = 0; i < squareList.length; i++) {
-            if (squareList[i] == square) {
-                squareList[i] = lastElement;
-                break;
-            }
+    let squareList = PIECE_LIST[getPieceColor(piece)][getPieceType(piece)];
+    let lastElement = squareList.pop()!;
+    for (let i = 0; i < squareList.length; i++) {
+        if (squareList[i] == square) {
+            squareList[i] = lastElement;
+            break;
         }
     }
 }
@@ -296,7 +288,6 @@ function initBoardFromFen(fen: string) {
                 KING_SQUARE[getPieceColor(piece)] = index;
             }
             addPiece(piece, index);
-            //BOARD[index] = piece;
             index += 1;
         } else {
             index += parseInt(c, 10);
@@ -430,13 +421,6 @@ function generateMoves(): number[] {
 function generateCaptures(): number[] {
     let moveList: number[] = [];
 
-    /*
-    for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
-        let squares = PIECE_LIST[ACTIVE_COLOR][pieceType];
-        for (let s = 0; s < squares.length; s++) { 
-            let square = squares[s];
-    */
-
     for (let s = 0; s < 64; s++) {
         let square = s + (s & 0x38);
 
@@ -446,7 +430,7 @@ function generateCaptures(): number[] {
         let pieceColor = getPieceColor(piece);
         if (pieceColor != ACTIVE_COLOR) continue;
 
-        let pieceType = piece & PIECE_TYPE_MASK;/**/
+        let pieceType = piece & PIECE_TYPE_MASK;
         if (pieceType == PAWN) {
             let direction = UP * (1 - 2 * ACTIVE_COLOR);
 
@@ -531,33 +515,28 @@ function makeMove(encodedMove: number): void {
     let moveFlags = move.moveFlags;
     let fromSquare = move.fromSquare;
     let toSquare = move.toSquare;
-    let capturedPiece = move.capturedPiece;
-    
+
     let piece = BOARD[fromSquare];
 
     if (moveFlags & PAWN_OR_CAPTURE_MASK) {
         PLY_CLOCK = 0;
     }
 
-    if ((moveFlags & CAPTURE_BIT) && !(moveFlags & EN_PASSANT_BIT)) {
+    if (moveFlags & EN_PASSANT_BIT) {
+        removePiece((fromSquare & RANK_MASK) + (toSquare & FILE_MASK));
+    } else if ((moveFlags & CAPTURE_BIT)) {
         removePiece(toSquare);
     }
-    
-    movePiece(fromSquare, toSquare);
-    //BOARD[fromSquare] = NULL;
-    //BOARD[toSquare] = piece;
 
-    if ((piece & PIECE_TYPE_MASK) == PAWN) {
-        if (moveFlags & PAWN_PUSH_2_SQUARES_BIT) {
-            EN_PASSANT_SQUARE = (fromSquare + toSquare) / 2;
-        } else if (moveFlags & PROMOTION_BIT) {
-            removePiece(toSquare);
-            addPiece(move.promotedPiece!, toSquare);
-            //BOARD[toSquare] = move.promotedPiece!;
-        } else if (moveFlags & EN_PASSANT_BIT) {
-            removePiece((fromSquare & RANK_MASK) + (toSquare & FILE_MASK));
-            //BOARD[(fromSquare & RANK_MASK) + (toSquare & FILE_MASK)] = NULL;
-        }
+    if (moveFlags & PROMOTION_BIT) {
+        removePiece(fromSquare);
+        addPiece(move.promotedPiece!, toSquare);
+    } else {
+        movePiece(fromSquare, toSquare);
+    }
+
+    if (moveFlags & PAWN_PUSH_2_SQUARES_BIT) {
+        EN_PASSANT_SQUARE = (fromSquare + toSquare) / 2;
     }
 
     if ((piece & PIECE_TYPE_MASK) == KING) {
@@ -566,12 +545,8 @@ function makeMove(encodedMove: number): void {
 
         if (moveFlags & KINGSIDE_CASTLING_BIT) {
             movePiece(toSquare + RIGHT, toSquare + LEFT);
-            //BOARD[toSquare + RIGHT] = NULL;
-            //BOARD[toSquare + LEFT] = makePiece(ACTIVE_COLOR, ROOK);
         } else if (moveFlags & QUEENSIDE_CASTLING_BIT) {
             movePiece(toSquare + LEFT + LEFT, toSquare + RIGHT);
-            //BOARD[toSquare + LEFT + LEFT] = NULL;
-            //BOARD[toSquare + RIGHT] = makePiece(ACTIVE_COLOR, ROOK);
         }
     }
 
@@ -597,27 +572,20 @@ function takeback(): void {
     let moveFlags = move.moveFlags;
     let fromSquare = move.fromSquare;
     let toSquare = move.toSquare;
-    let capturedPiece = move.capturedPiece!;
 
     let piece = BOARD[toSquare];
 
     if (moveFlags & PROMOTION_BIT) {
         removePiece(toSquare);
-        addPiece(makePiece(ACTIVE_COLOR, PAWN), toSquare);
-        //piece = makePiece(ACTIVE_COLOR, PAWN);
-    }
-
-    movePiece(toSquare, fromSquare);
-    //BOARD[fromSquare] = piece;
-    //BOARD[toSquare] = capturedPiece;
-
-    if ((moveFlags & CAPTURE_BIT) && !(moveFlags & EN_PASSANT_BIT)) {
-        addPiece(capturedPiece, toSquare);
+        addPiece(makePiece(ACTIVE_COLOR, PAWN), fromSquare);
+    } else {
+        movePiece(toSquare, fromSquare);
     }
 
     if (moveFlags & EN_PASSANT_BIT) {
         addPiece(makePiece(1 - ACTIVE_COLOR, PAWN), (fromSquare & RANK_MASK) + (toSquare & FILE_MASK));
-        //BOARD[(fromSquare & RANK_MASK) + (toSquare & FILE_MASK)] = makePiece(1 - ACTIVE_COLOR, PAWN);
+    } else if (moveFlags & CAPTURE_BIT) {
+        addPiece(move.capturedPiece!, toSquare);
     }
 
     if ((piece & PIECE_TYPE_MASK) == KING) {
@@ -625,12 +593,8 @@ function takeback(): void {
 
         if (moveFlags & KINGSIDE_CASTLING_BIT) {
             movePiece(toSquare + LEFT, toSquare + RIGHT);
-            //BOARD[toSquare + RIGHT] = makePiece(ACTIVE_COLOR, ROOK);
-            //BOARD[toSquare + LEFT] = NULL;
         } else if (moveFlags & QUEENSIDE_CASTLING_BIT) {
             movePiece(toSquare + RIGHT, toSquare + LEFT + LEFT);
-            //BOARD[toSquare + LEFT + LEFT] = makePiece(ACTIVE_COLOR, ROOK);
-            //BOARD[toSquare + RIGHT] = NULL;
         }
     }
 }
