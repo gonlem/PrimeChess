@@ -5,9 +5,10 @@
         "outDir": "./dist",
         "strict": true,
         "skipLibCheck": true,
-        "declaration": true,
-        "sourceMap": true,
-        "allowJs": true
+        "declaration": false,
+        "sourceMap": false,
+        "allowJs": true,
+        "removeComments": true
     },
     "include": [
         "src"

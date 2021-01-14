@@ -127,13 +127,15 @@ const PIECE_CODE_TO_PRINTABLE_CHAR = new Map([
     [NULL, '.']
 ]);
 
-const MOVE_DIRECTIONS = new Map([
-    [KNIGHT, [UP + UP + LEFT, UP + UP + RIGHT, DOWN + DOWN + LEFT, DOWN + DOWN + RIGHT, LEFT + LEFT + UP, LEFT + LEFT + DOWN, RIGHT + RIGHT + UP, RIGHT + RIGHT + DOWN]],
-    [BISHOP, [UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT]],
-    [ROOK, [UP, RIGHT, DOWN, LEFT]],
-    [QUEEN, [UP, RIGHT, DOWN, LEFT, UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT]],
-    [KING, [UP, RIGHT, DOWN, LEFT, UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT]]
-]);
+const MOVE_DIRECTIONS = [
+    [],
+    [UP, RIGHT, DOWN, LEFT, UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT], // KING
+    [], // PAWN
+    [UP + UP + LEFT, UP + UP + RIGHT, DOWN + DOWN + LEFT, DOWN + DOWN + RIGHT, LEFT + LEFT + UP, LEFT + LEFT + DOWN, RIGHT + RIGHT + UP, RIGHT + RIGHT + DOWN], // KNIGHT
+    [UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT], // BISHOP
+    [UP, RIGHT, DOWN, LEFT], // ROOK
+    [UP, RIGHT, DOWN, LEFT, UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT] // QUEEN
+]
 
 ////////////////////////////////////////////////////////////////
 //  CUSTOM TYPES                                              //
@@ -307,7 +309,7 @@ function generateMoves(): number[] {
 
         } else {
             let slide = pieceType & PIECE_SLIDER_MASK;
-            let directions = MOVE_DIRECTIONS.get(pieceType)!;
+            let directions = MOVE_DIRECTIONS[pieceType];
             for (let d = 0; d < directions.length; d++) {
                 let targetSquare = square;
                 do {
@@ -349,6 +351,66 @@ function generateMoves(): number[] {
             if (!isSquareAttacked(kingSquare, 1 - ACTIVE_COLOR)
                 && !isSquareAttacked(kingSquare + LEFT, 1 - ACTIVE_COLOR)) {
                 moveList.push(createMove(MF_QUEENSIDE_CASTLING, kingSquare, kingSquare + LEFT + LEFT));
+            }
+        }
+    }
+
+    return moveList;
+}
+
+function generateCaptures(): number[] {
+    let moveList: number[] = [];
+
+    for (let s = 0; s < 64; s++) {
+        let square = s + (s & 0x38);
+
+        let piece = BOARD[square];
+        if (piece == NULL) continue;
+
+        let pieceColor = getPieceColor(piece);
+        if (pieceColor != ACTIVE_COLOR) continue;
+
+        let pieceType = piece & PIECE_TYPE_MASK;
+        if (pieceType == PAWN) {
+            let direction = UP * (1 - 2 * ACTIVE_COLOR);
+
+            for (let lr = LEFT; lr <= RIGHT; lr += 2) {
+                let targetSquare = square + direction + lr;
+                if (targetSquare & OUT_OF_BOARD_MASK) continue;
+
+                let targetPiece = BOARD[targetSquare];
+                if (targetPiece != NULL && getPieceColor(targetPiece) != ACTIVE_COLOR) {
+                    if ((targetSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR]) {
+                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, makePiece(ACTIVE_COLOR, QUEEN)));
+                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, makePiece(ACTIVE_COLOR, ROOK)));
+                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, makePiece(ACTIVE_COLOR, BISHOP)));
+                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE, square, targetSquare, targetPiece, makePiece(ACTIVE_COLOR, KNIGHT)));
+                    } else {
+                        moveList.push(createMove(MF_PAWN_CAPTURE, square, targetSquare, targetPiece));
+                    }
+                }
+                if (targetSquare == EN_PASSANT_SQUARE) {
+                    moveList.push(createMove(MF_PAWN_CAPTURE_EN_PASSANT, square, targetSquare));
+                }
+            }
+
+        } else {
+            let slide = pieceType & PIECE_SLIDER_MASK;
+            let directions = MOVE_DIRECTIONS[pieceType];
+            for (let d = 0; d < directions.length; d++) {
+                let targetSquare = square;
+                do {
+                    targetSquare += directions[d];
+                    if (targetSquare & OUT_OF_BOARD_MASK) break;
+
+                    let targetPiece = BOARD[targetSquare];
+                    if (targetPiece != NULL) {
+                        if (getPieceColor(targetPiece) != ACTIVE_COLOR) {
+                            moveList.push(createMove(MF_PIECE_CAPTURE_MOVE, square, targetSquare, targetPiece));
+                        }
+                        break;
+                    }
+                } while (slide);
             }
         }
     }
@@ -452,7 +514,9 @@ function takeback(): void {
 
     let piece = BOARD[toSquare];
 
-    if (moveFlags & PROMOTION_BIT) piece = makePiece(ACTIVE_COLOR, PAWN);
+    if (moveFlags & PROMOTION_BIT) {
+        piece = makePiece(ACTIVE_COLOR, PAWN);
+    }
 
     BOARD[fromSquare] = piece;
     BOARD[toSquare] = capturedPiece;
@@ -481,12 +545,13 @@ function isSquareAttacked(square: number, color: number): boolean {
             let direction = DOWN * (1 - 2 * color);
             for (let lr = LEFT; lr <= RIGHT; lr += 2) {
                 let targetSquare = square + direction + lr;
-                if (targetSquare & OUT_OF_BOARD_MASK) continue;
-                if (BOARD[targetSquare] == piece) return true;
+                if (!(targetSquare & OUT_OF_BOARD_MASK) && BOARD[targetSquare] == piece) {
+                    return true;
+                }
             }
         } else {
             let slide = pieceType & PIECE_SLIDER_MASK;
-            let directions = MOVE_DIRECTIONS.get(pieceType)!;
+            let directions = MOVE_DIRECTIONS[pieceType];
             for (let d = 0; d < directions.length; d++) {
                 let targetSquare = square;
                 do {
@@ -576,5 +641,14 @@ function bench() {
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-//bench();
-testPerft();
+bench();
+//testPerft();
+
+/*
+for (let run = 1; run <= 5; run++) {
+    initBoardFromFen(STARTING_FEN);
+    console.time('Run ' + run);
+    console.log(perft(6));
+    console.timeEnd('Run ' + run);
+}
+*/
