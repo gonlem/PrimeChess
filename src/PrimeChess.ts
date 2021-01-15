@@ -182,6 +182,10 @@ function getPieceColor(piece: number) {
     return (piece & PIECE_COLOR_MASK) >> 3;
 }
 
+function getPieceType(piece: number) {
+    return (piece & PIECE_TYPE_MASK);
+}
+
 function toSquareCoordinates(square: number) {
     let file = String.fromCharCode('a'.charCodeAt(0) + (square & FILE_MASK));
     let rank = 8 - ((square & RANK_MASK) >> 4);
@@ -224,7 +228,7 @@ function initBoardFromFen(fen: string) {
             index += 8;
         } else if (isNaN(parseInt(c, 10))) {
             let piece = FEN_CHAR_TO_PIECE_CODE.get(c)!;
-            if ((piece & PIECE_TYPE_MASK) == KING) {
+            if (getPieceType(piece) == KING) {
                 KING_SQUARE[getPieceColor(piece)] = index;
             }
             BOARD[index] = piece;
@@ -262,7 +266,7 @@ function generateMoves(): number[] {
         let pieceColor = getPieceColor(piece);
         if (pieceColor != ACTIVE_COLOR) continue;
 
-        let pieceType = piece & PIECE_TYPE_MASK;
+        let pieceType = getPieceType(piece);
         if (pieceType == PAWN) {
             let direction = UP * (1 - 2 * ACTIVE_COLOR);
 
@@ -370,7 +374,7 @@ function generateCaptures(): number[] {
         let pieceColor = getPieceColor(piece);
         if (pieceColor != ACTIVE_COLOR) continue;
 
-        let pieceType = piece & PIECE_TYPE_MASK;
+        let pieceType = getPieceType(piece);
         if (pieceType == PAWN) {
             let direction = UP * (1 - 2 * ACTIVE_COLOR);
 
@@ -465,7 +469,7 @@ function makeMove(encodedMove: number): void {
         PLY_CLOCK = 0;
     }
 
-    if ((piece & PIECE_TYPE_MASK) == PAWN) {
+    if (getPieceType(piece) == PAWN) {
         if (moveFlags & PAWN_PUSH_2_SQUARES_BIT) {
             EN_PASSANT_SQUARE = (fromSquare + toSquare) / 2;
         } else if (moveFlags & PROMOTION_BIT) {
@@ -475,7 +479,7 @@ function makeMove(encodedMove: number): void {
         }
     }
 
-    if ((piece & PIECE_TYPE_MASK) == KING) {
+    if (getPieceType(piece) == KING) {
         KING_SQUARE[ACTIVE_COLOR] = toSquare;
         CASTLING_RIGHTS[ACTIVE_COLOR] = NULL;
 
@@ -525,7 +529,7 @@ function takeback(): void {
         BOARD[(fromSquare & RANK_MASK) + (toSquare & FILE_MASK)] = makePiece(1 - ACTIVE_COLOR, PAWN);
     }
 
-    if ((piece & PIECE_TYPE_MASK) == KING) {
+    if (getPieceType(piece) == KING) {
         KING_SQUARE[ACTIVE_COLOR] = fromSquare;
 
         if (moveFlags & KINGSIDE_CASTLING_BIT) {
@@ -539,7 +543,7 @@ function takeback(): void {
 }
 
 function isSquareAttacked(square: number, color: number): boolean {
-    for (let pieceType = QUEEN; pieceType >= KING; pieceType--) {
+    for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
         let piece = makePiece(color, pieceType);
         if (pieceType == PAWN) {
             let direction = DOWN * (1 - 2 * color);
@@ -574,8 +578,7 @@ function perft(depth: number): number {
     let nodes = 0;
     let moveList = generateMoves();
     for (let m = 0; m < moveList.length; m++) {
-        let move = moveList[m];
-        makeMove(move);
+        makeMove(moveList[m]);
         if (!isSquareAttacked(KING_SQUARE[1 - ACTIVE_COLOR], ACTIVE_COLOR)) {
             nodes += perft(depth - 1);
         }
@@ -644,11 +647,9 @@ function bench() {
 bench();
 //testPerft();
 
-/*
 for (let run = 1; run <= 5; run++) {
     initBoardFromFen(STARTING_FEN);
     console.time('Run ' + run);
     console.log(perft(6));
     console.timeEnd('Run ' + run);
 }
-*/

@@ -162,7 +162,43 @@ function benchMakePiece() {
     }
 }
 
-benchBoardLoop();
+function benchColorSwitch() {
+    let ACTIVE_COLOR_1 = 0;
+    let ACTIVE_COLOR_2 = 0;
+    let ACTIVE_COLOR_3 = false;
+
+    for (let run = 0; run < 5; run++) {
+        console.time('bench 1');
+        let count1 = 0;
+        for (let i = 0; i < 1000000000; i++) {
+            ACTIVE_COLOR_1 = 1 - ACTIVE_COLOR_1;
+            count1++;
+        }
+        console.log(count1);
+        console.timeEnd('bench 1');
+
+        console.time('bench 2');
+        let count2 = 0;
+        for (let i = 0; i < 1000000000; i++) {
+            ACTIVE_COLOR_2 ^= 1;
+            count2++;
+        }
+        console.log(count2);
+        console.timeEnd('bench 2');
+
+        console.time('bench 3');
+        let count3 = 0;
+        for (let i = 0; i < 1000000000; i++) {
+            ACTIVE_COLOR_3 = !ACTIVE_COLOR_3;
+            count3++;
+        }
+        console.log(count3);
+        console.timeEnd('bench 3');
+    }
+}
+
+//benchBoardLoop();
 //benchPawnStartingRankDetection();
 //benchBoardArray();
 //benchMakePiece();
+benchColorSwitch();
