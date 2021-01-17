@@ -162,35 +162,169 @@ function benchMakePiece() {
     }
 }
 
-function benchColorSwitch() {
-    let ACTIVE_COLOR_1 = 0;
-    let ACTIVE_COLOR_2 = 0;
-    let ACTIVE_COLOR_3 = false;
+function benchMovePieceInPieceList() {
+    let squareList1 = new Set<number>();
+    squareList1.add(98);
+    squareList1.add(99);
+    squareList1.add(100);
+    squareList1.add(101);
+    let squareList2 = [98, 99, 100, 101];
+    let squareList3 = new Uint8Array(10);
+    squareList3.set([98, 99, 100, 101]);
+    let squareList4 = [98, 99, 100, 101];
+
+    function movePieceInList1(fromSquare: number, toSquare: number) {
+        squareList1.delete(fromSquare);
+        squareList1.add(toSquare);
+    }
+
+    function movePieceInList2(fromSquare: number, toSquare: number) {
+        for (let i = 0; i < squareList2.length; i++) {
+            if (squareList2[i] == fromSquare) {
+                squareList2[i] == toSquare;
+                break;
+            }
+        }
+    }
+
+    function movePieceInList3(fromSquare: number, toSquare: number) {
+        for (let i = 0; i < squareList3.length; i++) {
+            if (squareList3[i] == fromSquare) {
+                squareList3[i] == toSquare;
+                break;
+            }
+        }
+    }
+
+    function movePieceInList4(fromSquare: number, toSquare: number) {
+        squareList4[squareList4.indexOf(fromSquare)] = toSquare;
+    }
 
     for (let run = 0; run < 5; run++) {
         console.time('bench 1');
         let count1 = 0;
-        for (let i = 0; i < 1000000000; i++) {
-            ACTIVE_COLOR_1 = 1 - ACTIVE_COLOR_1;
-            count1++;
+        for (let i = 0; i < 100000000; i++) {
+            movePieceInList1(99, 67);
+            movePieceInList1(100, 68);
+            movePieceInList1(67, 99);
+            movePieceInList1(68, 100);
         }
         console.log(count1);
         console.timeEnd('bench 1');
 
         console.time('bench 2');
         let count2 = 0;
-        for (let i = 0; i < 1000000000; i++) {
-            ACTIVE_COLOR_2 ^= 1;
-            count2++;
+        for (let i = 0; i < 100000000; i++) {
+            movePieceInList2(99, 67);
+            movePieceInList2(100, 68);
+            movePieceInList2(67, 99);
+            movePieceInList2(68, 100);
         }
         console.log(count2);
         console.timeEnd('bench 2');
 
         console.time('bench 3');
         let count3 = 0;
-        for (let i = 0; i < 1000000000; i++) {
-            ACTIVE_COLOR_3 = !ACTIVE_COLOR_3;
-            count3++;
+        for (let i = 0; i < 100000000; i++) {
+            movePieceInList3(99, 67);
+            movePieceInList3(100, 68);
+            movePieceInList3(67, 99);
+            movePieceInList3(68, 100);
+        }
+        console.log(count3);
+        console.timeEnd('bench 3');
+
+        console.time('bench 4');
+        let count4 = 0;
+        for (let i = 0; i < 100000000; i++) {
+            movePieceInList4(99, 67);
+            movePieceInList4(100, 68);
+            movePieceInList4(67, 99);
+            movePieceInList4(68, 100);
+        }
+        console.log(count4);
+        console.timeEnd('bench 4');
+    }
+}
+
+function benchRemovePieceInPieceList() {
+    let squareList1 = new Set<number>();
+    squareList1.add(98);
+    squareList1.add(99);
+    squareList1.add(100);
+    squareList1.add(101);
+    let squareList2 = [98, 99, 100, 101];
+    let squareList3 = [98, 99, 100, 101];
+
+    function removePieceInList1(square: number) {
+        squareList1.delete(square);
+    }
+
+    function takebackRemovalInPieceList1(square: number) {
+        squareList1.add(square);
+    }
+
+    function removePieceInList2(square: number) {
+        let lastElement = squareList2.pop();
+        for (let i = 0; i < squareList2.length; i++) {
+            if (squareList2[i] == square) {
+                squareList2[i] == lastElement;
+                break;
+            }
+        }
+    }
+
+    function takebackRemovalInPieceList2(square: number) {
+        squareList2.push(square);
+    }
+
+    function removePieceInList3(square: number) {
+        let lastElement = squareList3.pop()!;
+        if (lastElement != square) {
+            squareList3[squareList3.indexOf(square)] = lastElement;
+        }
+    }
+
+    function takebackRemovalInPieceList3(square: number) {
+        squareList3.push(square);
+    }
+
+    for (let run = 0; run < 5; run++) {
+        console.time('bench 1');
+        let count1 = 0;
+
+        for (let i = 0; i < 100000000; i++) {
+            removePieceInList1(99);
+            if (squareList1.size == 3) count1++;
+            removePieceInList1(100);
+            takebackRemovalInPieceList1(99);
+            takebackRemovalInPieceList1(100);
+        }
+        console.log(count1);
+        console.timeEnd('bench 1');
+
+        console.time('bench 2');
+        let count2 = 0;
+
+        for (let i = 0; i < 100000000; i++) {
+            removePieceInList2(99);
+            if (squareList2.length == 3) count2++;
+            removePieceInList2(100);
+            takebackRemovalInPieceList2(99);
+            takebackRemovalInPieceList2(100);
+        }
+        console.log(count2);
+        console.timeEnd('bench 2');
+
+        console.time('bench 3');
+        let count3 = 0;
+
+        for (let i = 0; i < 100000000; i++) {
+            removePieceInList3(99);
+            if (squareList3.length == 3) count3++;
+            removePieceInList3(100);
+            takebackRemovalInPieceList3(99);
+            takebackRemovalInPieceList3(100);
         }
         console.log(count3);
         console.timeEnd('bench 3');
@@ -201,4 +335,5 @@ function benchColorSwitch() {
 //benchPawnStartingRankDetection();
 //benchBoardArray();
 //benchMakePiece();
-benchColorSwitch();
+benchMovePieceInPieceList();
+//benchRemovePieceInPieceList();
