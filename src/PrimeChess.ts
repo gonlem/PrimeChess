@@ -266,6 +266,11 @@ function clearBoard() {
     KING_SQUARE = [SQUARE_NULL, SQUARE_NULL];
     PLY_CLOCK = 0;
     MOVE_NUMBER = 1;
+    for (let color = WHITE; color <= BLACK; color++) {
+        for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
+            PIECE_LIST[color][pieceType] = [];
+        }
+    }
 }
 
 function initBoardFromFen(fen: string) {
@@ -721,14 +726,12 @@ function bench() {
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-//bench();
-testPerft();
+bench();
+//testPerft();
 
-/*
 for (let run = 1; run <= 5; run++) {
     initBoardFromFen(STARTING_FEN);
     console.time('Run ' + run);
     console.log(perft(6));
     console.timeEnd('Run ' + run);
 }
-*/
