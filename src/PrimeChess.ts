@@ -171,64 +171,12 @@ let EN_PASSANT_SQUARE = SQUARE_NULL;
 let CASTLING_RIGHTS = [NULL, NULL];
 let PLY_CLOCK = 0;
 let MOVE_NUMBER = 1;
-let PIECE_LIST: number[][][] = [
-    [ // WHITE
-        [],
-        [], // KING
-        [], // PAWN
-        [], // KNIGHT
-        [], // BISHOP
-        [], // ROOK
-        []  // QUEEN
-    ],
-    [ // BLACK
-        [],
-        [], // KING
-        [], // PAWN
-        [], // KNIGHT
-        [], // BISHOP
-        [], // ROOK
-        []  // QUEEN
-    ]
-]
 
 ////////////////////////////////////////////////////////////////
 //  FUNCTIONS                                                 //
 ////////////////////////////////////////////////////////////////
 
-function movePiece(fromSquare: number, toSquare: number) {
-    let piece = BOARD[fromSquare];
-    BOARD[fromSquare] = NULL;
-    BOARD[toSquare] = piece;
 
-    let squareList = PIECE_LIST[getPieceColor(piece)][getPieceType(piece)];
-    for (let i = 0; i < squareList.length; i++) {
-        if (squareList[i] == fromSquare) {
-            squareList[i] = toSquare;
-            break;
-        }
-    }
-}
-
-function addPiece(piece: number, square: number) {
-    BOARD[square] = piece;
-
-    PIECE_LIST[getPieceColor(piece)][getPieceType(piece)].push(square);
-}
-
-function removePiece(square: number) {
-    let piece = BOARD[square];
-    BOARD[square] = NULL;
-
-    let squareList = PIECE_LIST[getPieceColor(piece)][getPieceType(piece)];
-    let lastElement = squareList.pop()!;
-    for (let i = 0; i < squareList.length; i++) {
-        if (squareList[i] == square) {
-            squareList[i] = lastElement;
-            break;
-        }
-    }
-}
 
 function makePiece(color: number, pieceType: number) {
     return pieceType | (color << 3);
@@ -264,11 +212,6 @@ function clearBoard() {
     CASTLING_RIGHTS = [NULL, NULL];
     PLY_CLOCK = 0;
     MOVE_NUMBER = 1;
-    for (let color = WHITE; color <= BLACK; color++) {
-        for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
-            PIECE_LIST[color][pieceType] = [];
-        }
-    }
 }
 
 function initBoardFromFen(fen: string) {
@@ -282,6 +225,7 @@ function initBoardFromFen(fen: string) {
     let fenFullMoveCount = fenParts[5];
 
     clearBoard();
+    clearPieceList();
     let index = 0;
     for (let c of fenBoard) {
         if (c == '/') {
@@ -324,6 +268,7 @@ function generateMoves(): number[] {
         if (pieceColor != ACTIVE_COLOR) continue;
 
         let pieceType = getPieceType(piece);
+
         if (pieceType == PAWN) {
             let direction = UP * (1 - 2 * ACTIVE_COLOR);
 
@@ -392,7 +337,7 @@ function generateMoves(): number[] {
     }
 
     if (CASTLING_RIGHTS[ACTIVE_COLOR] & KINGSIDE_CASTLING_BIT) {
-        let kingSquare = PIECE_LIST[ACTIVE_COLOR][KING][0];
+        let kingSquare = getKingSquare(ACTIVE_COLOR);
         if (BOARD[kingSquare + RIGHT] == NULL
             && BOARD[kingSquare + RIGHT + RIGHT] == NULL) {
 
@@ -404,7 +349,7 @@ function generateMoves(): number[] {
     }
 
     if (CASTLING_RIGHTS[ACTIVE_COLOR] & QUEENSIDE_CASTLING_BIT) {
-        let kingSquare = PIECE_LIST[ACTIVE_COLOR][KING][0];
+        let kingSquare = getKingSquare(ACTIVE_COLOR);
         if (BOARD[kingSquare + LEFT] == NULL
             && BOARD[kingSquare + LEFT + LEFT] == NULL
             && BOARD[kingSquare + LEFT + LEFT + LEFT] == NULL) {
@@ -634,7 +579,7 @@ function perft(depth: number): number {
     let moveList = generateMoves();
     for (let m = 0; m < moveList.length; m++) {
         makeMove(moveList[m]);
-        if (!isSquareAttacked(PIECE_LIST[1 - ACTIVE_COLOR][KING][0], ACTIVE_COLOR)) {
+        if (!isSquareAttacked(getKingSquare(1 - ACTIVE_COLOR), ACTIVE_COLOR)) {
             nodes += perft(depth - 1);
         }
         takeback();
@@ -656,6 +601,12 @@ function printBoard() {
     console.log(printableBoard);
 }
 
+function printMove(encodedMove: number) {
+    let move = decodeMove(encodedMove);
+    console.log(PIECE_CODE_TO_PRINTABLE_CHAR.get(BOARD[move.fromSquare]) + " moves from " + toSquareCoordinates(move.fromSquare) + " to " + toSquareCoordinates(move.toSquare));
+}
+
+/*
 function printPieceList() {
     let printablePieceList = '';
     for (let color = WHITE; color <= BLACK; color++) {
@@ -671,6 +622,7 @@ function printPieceList() {
     }
     console.log(printablePieceList);
 }
+*/
 
 function testPerft() {
     let perftTests = new Map<string, number[]>();
@@ -704,7 +656,7 @@ function bench() {
         '8/7Q/8/1kpq4/p7/P2pp3/1P6/K1R5 w - - 0 46', // new
         'b7/4nk1p/5pp1/6N1/8/4B3/1P3PPb/5B1K b - - 1 26' // new
     ];
-    for (let run = 1; run <= 5; run++) {
+    for (let run = 1; run <= 3; run++) {
         console.time('Run ' + run);
         for (let p = 0; p < benchPositions.length; p++) {
             initBoardFromFen(benchPositions[p]);
@@ -715,16 +667,198 @@ function bench() {
 }
 
 ////////////////////////////////////////////////////////////////
+//  PIECE_LIST_1                                              //
+////////////////////////////////////////////////////////////////
+
+/*
+let PIECE_LIST_1: number[][][] = [
+    [ // WHITE
+        [],
+        [], // KING
+        [], // PAWN
+        [], // KNIGHT
+        [], // BISHOP
+        [], // ROOK
+        []  // QUEEN
+    ],
+    [ // BLACK
+        [],
+        [], // KING
+        [], // PAWN
+        [], // KNIGHT
+        [], // BISHOP
+        [], // ROOK
+        []  // QUEEN
+    ]
+];
+
+function movePiece(fromSquare: number, toSquare: number) {
+    let piece = BOARD[fromSquare];
+    BOARD[fromSquare] = NULL;
+    BOARD[toSquare] = piece;
+
+    let squareList = PIECE_LIST_1[getPieceColor(piece)][getPieceType(piece)];
+    for (let i = 0; i < squareList.length; i++) {
+        if (squareList[i] == fromSquare) {
+            squareList[i] = toSquare;
+            break;
+        }
+    }
+}
+
+function addPiece(piece: number, square: number) {
+    BOARD[square] = piece;
+
+    PIECE_LIST_1[getPieceColor(piece)][getPieceType(piece)].push(square);
+}
+
+function removePiece(square: number) {
+    let piece = BOARD[square];
+    BOARD[square] = NULL;
+
+    let squareList = PIECE_LIST_1[getPieceColor(piece)][getPieceType(piece)];
+    let lastElement = squareList.pop()!;
+    for (let i = 0; i < squareList.length; i++) {
+        if (squareList[i] == square) {
+            squareList[i] = lastElement;
+            break;
+        }
+    }
+}
+
+function getKingSquare(color: number) {
+    return PIECE_LIST_1[color][KING][0];
+}
+
+function clearPieceList() {
+    for (let color = WHITE; color <= BLACK; color++) {
+        for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
+            PIECE_LIST_1[color][pieceType].length = 0;
+        }
+    }
+}
+*/
+
+////////////////////////////////////////////////////////////////
+//  PIECE_LIST_2                                              //
+////////////////////////////////////////////////////////////////
+
+/*
+let PIECE_LIST_2 = [
+    new Uint8Array(7 * 10),
+    new Uint8Array(7 * 10)
+];
+
+function movePiece(fromSquare: number, toSquare: number) {
+    let piece = BOARD[fromSquare];
+    BOARD[fromSquare] = NULL;
+    BOARD[toSquare] = piece;
+
+    let squareList = PIECE_LIST_2[getPieceColor(piece)];
+    let i = 10 * getPieceType(piece);
+    while (squareList[i] != fromSquare) i++;
+    squareList[i] = toSquare;
+}
+
+function addPiece(piece: number, square: number) {
+    BOARD[square] = piece;
+
+    let pieceCount = PIECE_LIST_2[getPieceColor(piece)][getPieceType(piece)]++;
+    let i = 10 * getPieceType(piece) + pieceCount;
+    PIECE_LIST_2[getPieceColor(piece)][i] = square;
+}
+
+function removePiece(square: number) {
+    let piece = BOARD[square];
+    BOARD[square] = NULL;
+
+    let pieceCount = PIECE_LIST_2[getPieceColor(piece)][getPieceType(piece)]--;
+    let i = 10 * getPieceType(piece);
+    for (let j = 0; j < pieceCount - 1; j++) {
+        if (PIECE_LIST_2[getPieceColor(piece)][i + j] == square) {
+            PIECE_LIST_2[getPieceColor(piece)][i + j] = PIECE_LIST_2[getPieceColor(piece)][i + pieceCount - 1];
+            break;
+        }
+    }
+}
+
+function getKingSquare(color: number) {
+    return PIECE_LIST_2[color][KING * 10];
+}
+
+function clearPieceList() {
+    for (let color = WHITE; color <= BLACK; color++) {
+        for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
+            PIECE_LIST_2[color][pieceType] = 0;
+        }
+    }
+}
+*/
+
+////////////////////////////////////////////////////////////////
+//  PIECE_LIST_3                                              //
+////////////////////////////////////////////////////////////////
+
+
+let PIECE_LIST_3 = new Uint8Array(160);
+
+function movePiece(fromSquare: number, toSquare: number) {
+    let piece = BOARD[fromSquare];
+    BOARD[fromSquare] = NULL;
+    BOARD[toSquare] = piece;
+
+    let i = 10 * piece;
+    while (PIECE_LIST_3[i] != fromSquare) i++;
+    PIECE_LIST_3[i] = toSquare;
+}
+
+function addPiece(piece: number, square: number) {
+    BOARD[square] = piece;
+
+    let pieceCount = PIECE_LIST_3[getPieceColor(piece) * 80 + getPieceType(piece)]++;
+    PIECE_LIST_3[piece * 10 + pieceCount] = square;
+}
+
+function removePiece(square: number) {
+    let piece = BOARD[square];
+    BOARD[square] = NULL;
+
+    let pieceCount = PIECE_LIST_3[getPieceColor(piece) * 80 + getPieceType(piece)]--;
+    let i = 10 * piece;
+    for (let j = 0; j < pieceCount - 1; j++) {
+        if (PIECE_LIST_3[i + j] == square) {
+            PIECE_LIST_3[i + j] = PIECE_LIST_3[i + pieceCount - 1];
+            break;
+        }
+    }
+}
+
+function getKingSquare(color: number) {
+    return PIECE_LIST_3[makePiece(color, KING) * 10];
+}
+
+function clearPieceList() {
+    for (let color = WHITE; color <= BLACK; color++) {
+        for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
+            PIECE_LIST_3[color * 80 + pieceType] = 0;
+        }
+    }
+}
+
+
+////////////////////////////////////////////////////////////////
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-//bench();
-testPerft();
+bench();
 /*
-for (let run = 1; run <= 5; run++) {
+console.time('testPerft');
+testPerft();
+console.timeEnd('testPerft');
+*/
+for (let run = 1; run <= 3; run++) {
     initBoardFromFen(STARTING_FEN);
     console.time('Run ' + run);
     console.log(perft(6));
     console.timeEnd('Run ' + run);
 }
-*/
