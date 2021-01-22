@@ -104,7 +104,6 @@ const CAPTURE_BIT = 0x04;
 const PAWN_MOVE_BIT = 0x08;
 const PAWN_SPECIAL_BIT = 0x10;
 const PROMOTION_MASK = 0xE0;
-
 const PAWN_MOVE_OR_CAPTURE_MASK = PAWN_MOVE_BIT + CAPTURE_BIT;
 
 const MF_PAWN_PUSH_1_SQUARE = PAWN_MOVE_BIT;
@@ -144,6 +143,8 @@ const MOVE_DIRECTIONS = [
     [UP, RIGHT, DOWN, LEFT], // ROOK
     [UP, RIGHT, DOWN, LEFT, UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT] // QUEEN
 ]
+
+const PIECE_VALUE = [0, 20000, 100, 300, 300, 500, 900];
 
 ////////////////////////////////////////////////////////////////
 //  CUSTOM TYPES                                              //
@@ -197,6 +198,10 @@ function getKingSquare(color: number) {
     return PIECE_LIST[makePiece(color, KING) * 10];
 }
 
+function getPieceCount(color: number, pieceType: number) {
+    return PIECE_LIST[color * 80 + pieceType];
+}
+
 function movePiece(fromSquare: number, toSquare: number) {
     let piece = BOARD[fromSquare];
     BOARD[fromSquare] = NULL;
@@ -228,20 +233,14 @@ function removePiece(square: number) {
     }
 }
 
-function toSquareCoordinates(square: number) {
-    let file = String.fromCharCode('a'.charCodeAt(0) + (square & FILE_MASK));
-    let rank = 8 - ((square & RANK_MASK) >> 4);
-    return file + rank;
-}
-
-function toSquare(squareCoordinates: string): number {
+function parseSquare(squareCoordinates: string): number {
     return (squareCoordinates.charCodeAt(0) - 'a'.charCodeAt(0))
         - 16 * (squareCoordinates.charCodeAt(1) - '8'.charCodeAt(0));
 }
 
 function clearBoard() {
-    for (let square = 0; square < BOARD.length; square++) {
-        BOARD[square] = NULL;
+    for (let i = 0; i < BOARD.length; i++) {
+        BOARD[i] = NULL;
     }
     for (let i = 0; i < PIECE_LIST.length; i++) {
         PIECE_LIST[i] = NULL;
@@ -255,7 +254,7 @@ function clearBoard() {
     MOVE_NUMBER = 1;
 }
 
-function initBoardFromFen(fen: string) {
+function initBoard(fen: string = STARTING_FEN) {
     let fenParts = fen.split(' ');
 
     let fenBoard = fenParts[0];
@@ -288,7 +287,7 @@ function initBoardFromFen(fen: string) {
     if (fenCastlingRights.includes('q')) CASTLING_RIGHTS[BLACK] |= QUEENSIDE_CASTLING_BIT;
 
     if (fenEnPassantSquare != '-') {
-        EN_PASSANT_SQUARE = toSquare(fenEnPassantSquare);
+        EN_PASSANT_SQUARE = parseSquare(fenEnPassantSquare);
     }
 
     PLY_CLOCK = parseInt(fenHalfMoveClock, 10);
@@ -296,7 +295,7 @@ function initBoardFromFen(fen: string) {
     MOVE_NUMBER = parseInt(fenFullMoveCount, 10);
 }
 
-function generateMoves(): number[] {
+function generateMoves(captureOnly: boolean = false): number[] {
     let moveList: number[] = [];
     let square;
     let piece;
@@ -311,20 +310,22 @@ function generateMoves(): number[] {
             square = PIECE_LIST[10 * piece + p];
 
             if (pieceType == PAWN) {
-                targetSquare = square + direction;
-                if (BOARD[targetSquare] == NULL) {
-                    if ((targetSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR]) {
-                        moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_QUEEN, square, targetSquare));
-                        moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_ROOK, square, targetSquare));
-                        moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_BISHOP, square, targetSquare));
-                        moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_KNIGHT, square, targetSquare));
-                    } else {
-                        moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE, square, targetSquare));
+                if (!captureOnly) {
+                    targetSquare = square + direction;
+                    if (BOARD[targetSquare] == NULL) {
+                        if ((targetSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR]) {
+                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_QUEEN, square, targetSquare));
+                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_ROOK, square, targetSquare));
+                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_BISHOP, square, targetSquare));
+                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_KNIGHT, square, targetSquare));
+                        } else {
+                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE, square, targetSquare));
 
-                        if ((square & RANK_MASK) == PAWN_STARTING_RANK[ACTIVE_COLOR]) {
-                            targetSquare += direction;
-                            if (BOARD[targetSquare] == NULL) {
-                                moveList.push(createMove(MF_PAWN_PUSH_2_SQUARES, square, targetSquare));
+                            if ((square & RANK_MASK) == PAWN_STARTING_RANK[ACTIVE_COLOR]) {
+                                targetSquare += direction;
+                                if (BOARD[targetSquare] == NULL) {
+                                    moveList.push(createMove(MF_PAWN_PUSH_2_SQUARES, square, targetSquare));
+                                }
                             }
                         }
                     }
@@ -366,35 +367,38 @@ function generateMoves(): number[] {
                             }
                             break;
                         }
-
-                        moveList.push(createMove(MF_PIECE_NORMAL_MOVE, square, targetSquare));
+                        if (!captureOnly) {
+                            moveList.push(createMove(MF_PIECE_NORMAL_MOVE, square, targetSquare));
+                        }
                     } while (slide);
                 }
             }
         }
     }
 
-    if (CASTLING_RIGHTS[ACTIVE_COLOR] & KINGSIDE_CASTLING_BIT) {
-        let kingSquare = getKingSquare(ACTIVE_COLOR);
-        if (BOARD[kingSquare + RIGHT] == NULL
-            && BOARD[kingSquare + RIGHT + RIGHT] == NULL) {
+    if (!captureOnly) {
+        if (CASTLING_RIGHTS[ACTIVE_COLOR] & KINGSIDE_CASTLING_BIT) {
+            let kingSquare = getKingSquare(ACTIVE_COLOR);
+            if (BOARD[kingSquare + RIGHT] == NULL
+                && BOARD[kingSquare + RIGHT + RIGHT] == NULL) {
 
-            if (!isSquareAttacked(kingSquare, 1 - ACTIVE_COLOR)
-                && !isSquareAttacked(kingSquare + RIGHT, 1 - ACTIVE_COLOR)) {
-                moveList.push(createMove(MF_KINGSIDE_CASTLING, kingSquare, kingSquare + RIGHT + RIGHT));
+                if (!isSquareAttacked(kingSquare, 1 - ACTIVE_COLOR)
+                    && !isSquareAttacked(kingSquare + RIGHT, 1 - ACTIVE_COLOR)) {
+                    moveList.push(createMove(MF_KINGSIDE_CASTLING, kingSquare, kingSquare + RIGHT + RIGHT));
+                }
             }
         }
-    }
 
-    if (CASTLING_RIGHTS[ACTIVE_COLOR] & QUEENSIDE_CASTLING_BIT) {
-        let kingSquare = getKingSquare(ACTIVE_COLOR);
-        if (BOARD[kingSquare + LEFT] == NULL
-            && BOARD[kingSquare + LEFT + LEFT] == NULL
-            && BOARD[kingSquare + LEFT + LEFT + LEFT] == NULL) {
+        if (CASTLING_RIGHTS[ACTIVE_COLOR] & QUEENSIDE_CASTLING_BIT) {
+            let kingSquare = getKingSquare(ACTIVE_COLOR);
+            if (BOARD[kingSquare + LEFT] == NULL
+                && BOARD[kingSquare + LEFT + LEFT] == NULL
+                && BOARD[kingSquare + LEFT + LEFT + LEFT] == NULL) {
 
-            if (!isSquareAttacked(kingSquare, 1 - ACTIVE_COLOR)
-                && !isSquareAttacked(kingSquare + LEFT, 1 - ACTIVE_COLOR)) {
-                moveList.push(createMove(MF_QUEENSIDE_CASTLING, kingSquare, kingSquare + LEFT + LEFT));
+                if (!isSquareAttacked(kingSquare, 1 - ACTIVE_COLOR)
+                    && !isSquareAttacked(kingSquare + LEFT, 1 - ACTIVE_COLOR)) {
+                    moveList.push(createMove(MF_QUEENSIDE_CASTLING, kingSquare, kingSquare + LEFT + LEFT));
+                }
             }
         }
     }
@@ -556,6 +560,54 @@ function isSquareAttacked(square: number, color: number): boolean {
     return false;
 }
 
+function evaluate(): number {
+    let score = 0;
+    for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
+        score += (getPieceCount(ACTIVE_COLOR, pieceType) - getPieceCount(1 - ACTIVE_COLOR, pieceType)) * PIECE_VALUE[pieceType];
+    }
+    return score;
+}
+
+function quiesce(alpha: number, beta: number): number {
+    let score = evaluate();
+    if (score >= beta) return beta;
+    if (score > alpha) alpha = score;
+
+    let moveList = generateMoves(true);
+    for (let m = 0; m < moveList.length; m++) {
+        makeMove(moveList[m]);
+        if (!isSquareAttacked(getKingSquare(1 - ACTIVE_COLOR), ACTIVE_COLOR)) {
+            score = -quiesce(-beta, -alpha);
+            if (score >= beta) {
+                takeback();
+                return beta;
+            }
+            if (score > alpha) alpha = score;
+        }
+        takeback();
+    }
+
+    return alpha;
+}
+
+function alphaBeta(alpha: number, beta: number, depth: number): number {
+    if (depth == 0) return quiesce(alpha, beta);
+    let moveList = generateMoves();
+    for (let m = 0; m < moveList.length; m++) {
+        makeMove(moveList[m]);
+        if (!isSquareAttacked(getKingSquare(1 - ACTIVE_COLOR), ACTIVE_COLOR)) {
+            let score = -alphaBeta(-beta, -alpha, depth - 1);
+            if (score >= beta) {
+                takeback();
+                return beta;
+            }
+            if (score > alpha) alpha = score;
+        }
+        takeback();
+    }
+    return alpha;
+}
+
 function perft(depth: number): number {
     if (depth == 0) return 1;
     let nodes = 0;
@@ -571,8 +623,92 @@ function perft(depth: number): number {
 }
 
 ////////////////////////////////////////////////////////////////
+//  UCI INTEGRATION                                           //
+////////////////////////////////////////////////////////////////
+
+function parseMove(move: string) {
+    let fromSquare = parseSquare(move.substring(0, 1));
+    let toSquare = parseSquare(move.substring(2, 3));
+    let piece = BOARD[fromSquare];
+    let targetPiece = BOARD[toSquare];
+    let moveFlags = 0;
+    if (targetPiece != NULL) moveFlags |= CAPTURE_BIT;
+
+    switch (getPieceType(piece)) {
+        case PAWN:
+            moveFlags |= PAWN_MOVE_BIT;
+            let moveDistance = Math.abs(fromSquare - toSquare);
+            if (moveDistance == 32) moveFlags |= PAWN_SPECIAL_BIT;
+            if ((moveDistance == 15 || moveDistance == 17) && targetPiece == NULL) {
+                moveFlags |= CAPTURE_BIT;
+                moveFlags |= PAWN_SPECIAL_BIT;
+            }
+            if (move.length > 4) {
+                let promotedPiece = FEN_CHAR_TO_PIECE_CODE.get(move.charAt(4))!;
+                moveFlags |= (getPieceType(promotedPiece) << 5);
+            }
+            return createMove(moveFlags, fromSquare, toSquare, targetPiece);
+        case KING:
+            if ((fromSquare - toSquare) == 2) moveFlags |= QUEENSIDE_CASTLING_BIT;
+            if ((fromSquare - toSquare) == -2) moveFlags |= KINGSIDE_CASTLING_BIT;
+            return createMove(moveFlags, fromSquare, toSquare, targetPiece);
+        default:
+            return createMove(moveFlags, fromSquare, toSquare, targetPiece);
+    }
+}
+
+function uci() {
+    const readline = require('readline');
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+
+    rl.on('line', (command: string) => {
+        let commandParts = command.split(' ');
+        switch (commandParts[0]) {
+            case 'uci':
+                console.log('id name PrimeChess');
+                console.log('id author Gonlem');
+                console.log('uciok');
+                break;
+            case 'isready':
+                console.log('readyok');
+                break;
+            case 'ucinewgame':
+                initBoard();
+                break;
+            case 'position':
+                if (commandParts[1] == 'fen') {
+                    initBoard(command.split(' fen ')[1]);
+                } else {
+                    initBoard();
+                }
+                if (command.includes(' moves ')) {
+                    let moves = command.split(' moves ')[1].split(' ');
+                    for (let move of moves) {
+                        makeMove(parseMove(move)!);
+                    }
+                }
+                break;
+            case 'go':
+                // TODO
+                break;
+            case 'quit':
+                process.exit();
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////
 //  DISPLAYING AND DEBUGGING FUNCTIONS                        //
 ////////////////////////////////////////////////////////////////
+
+function toSquareCoordinates(square: number) {
+    let file = String.fromCharCode('a'.charCodeAt(0) + (square & FILE_MASK));
+    let rank = 8 - ((square & RANK_MASK) >> 4);
+    return file + rank;
+}
 
 function printBoard() {
     let printableBoard = '';
@@ -620,7 +756,7 @@ function testPerft() {
 
     console.log('========================================');
     perftTests.forEach((perftCounts, fenString) => {
-        initBoardFromFen(fenString);
+        initBoard(fenString);
         printBoard();
         for (let depth = 0; depth < perftCounts.length; depth++) {
             let perftCount = perft(depth);
@@ -640,7 +776,7 @@ function bench() {
     for (let run = 1; run <= 3; run++) {
         console.time('Run ' + run);
         for (let p = 0; p < benchPositions.length; p++) {
-            initBoardFromFen(benchPositions[p]);
+            initBoard(benchPositions[p]);
             perft(5);
         }
         console.timeEnd('Run ' + run);
@@ -655,8 +791,27 @@ bench();
 //testPerft();
 
 for (let run = 1; run <= 3; run++) {
-    initBoardFromFen(STARTING_FEN);
+    initBoard(STARTING_FEN);
     console.time('Run ' + run);
     perft(6);
     console.timeEnd('Run ' + run);
 }
+
+/*
+initBoard('2q3k1/8/8/5N2/6P1/7K/8/8 w - - 0 1'); // 400
+console.log(alphaBeta(-100000, 100000, 6));
+initBoard('6k1/5r1p/p2N4/nppP2q1/2P5/1P2N3/PQ5P/7K w - - 0 1'); // 400
+console.log(alphaBeta(-100000, 100000, 6));
+initBoard('7k/8/8/4b1n1/8/8/5PPP/5R1K w - - 0 1'); // 400
+console.log(alphaBeta(-100000, 100000, 6));
+initBoard('r1bqkb1r/pppp1ppp/2n5/4p3/2B1N3/5N2/PPPP1PPP/R1BQK2R b KQkq - 0 2'); // 0
+console.log(alphaBeta(-100000, 100000, 6));
+initBoard('8/8/b5k1/8/8/8/1K6/3R4 w - - 0 1'); // 500
+console.log(alphaBeta(-100000, 100000, 6));
+initBoard('4k2r/2n2p1p/6p1/3n4/5Q2/8/5PPP/6K1 w - - 0 1'); // 300
+console.log(alphaBeta(-100000, 100000, 6));
+initBoard('r3k3/7p/6p1/5p2/5r2/2NP4/PPP2PPP/R5K1 w - - 0 1'); // 400
+console.log(alphaBeta(-100000, 100000, 6));
+initBoard('8/5pk1/8/4p3/pp1qPn2/5P2/PP2B3/2Q2K2 b - - 0 1'); // 300
+console.log(alphaBeta(-100000, 100000, 6));
+*/
