@@ -23,7 +23,7 @@
 //  |   2 |   2 | 0010 | WHITE PAWN   |   | 0000 0100 | 0x04 | CAPTURE         |
 //  |   3 |   3 | 0011 | WHITE KNIGHT |   | 0000 1000 | 0x08 | PAWN MOVE       |
 //  |   4 |   4 | 0100 | WHITE BISHOP |   | 0001 0000 | 0x10 | PAWN SPECIAL    |
-//  |   5 |   5 | 0101 | WHITE ROOK   |   | 1110 0000 | 0x20 | PROMOTED PIECE  |
+//  |   5 |   5 | 0101 | WHITE ROOK   |   | 1110 0000 | 0xE0 | PROMOTED PIECE  |
 //  |   6 |   6 | 0110 | WHITE QUEEN  |   +-----------+------+-----------------+
 //  |   7 |   7 | 0111 |              |
 //  |   8 |   8 | 1000 |              |
@@ -145,6 +145,8 @@ const MOVE_DIRECTIONS = [
 ]
 
 const PIECE_VALUE = [0, 20000, 100, 300, 300, 500, 900];
+const INFINITY = 100000;
+const MATE_VALUE = 50000;
 
 ////////////////////////////////////////////////////////////////
 //  CUSTOM TYPES                                              //
@@ -154,6 +156,7 @@ type Move = {
     moveFlags: number;
     fromSquare: number;
     toSquare: number;
+    movingPiece: number;
     capturedPiece?: number;
 };
 
@@ -178,6 +181,10 @@ let CASTLING_RIGHTS = [NULL, NULL];
 let PLY_CLOCK = 0;
 let MOVE_NUMBER = 1;
 
+let NODE_COUNT = 0;
+let SEARCH_DEPTH = 0;
+let BEST_MOVE = 0;
+
 ////////////////////////////////////////////////////////////////
 //  FUNCTIONS                                                 //
 ////////////////////////////////////////////////////////////////
@@ -194,12 +201,12 @@ function getPieceType(piece: number) {
     return (piece & PIECE_TYPE_MASK);
 }
 
-function getKingSquare(color: number) {
-    return PIECE_LIST[makePiece(color, KING) * 10];
-}
-
 function getPieceCount(color: number, pieceType: number) {
     return PIECE_LIST[color * 80 + pieceType];
+}
+
+function getKingSquare(color: number) {
+    return PIECE_LIST[makePiece(color, KING) * 10];
 }
 
 function movePiece(fromSquare: number, toSquare: number) {
@@ -297,9 +304,9 @@ function initBoard(fen: string = STARTING_FEN) {
 
 function generateMoves(captureOnly: boolean = false): number[] {
     let moveList: number[] = [];
-    let square;
+    let fromSquare;
     let piece;
-    let targetSquare;
+    let toSquare;
     let targetPiece;
     let direction = UP * (1 - 2 * ACTIVE_COLOR);
 
@@ -307,24 +314,24 @@ function generateMoves(captureOnly: boolean = false): number[] {
         piece = makePiece(ACTIVE_COLOR, pieceType);
         let pieceCount = PIECE_LIST[ACTIVE_COLOR * 80 + pieceType];
         for (let p = 0; p < pieceCount; p++) {
-            square = PIECE_LIST[10 * piece + p];
+            fromSquare = PIECE_LIST[10 * piece + p];
 
             if (pieceType == PAWN) {
                 if (!captureOnly) {
-                    targetSquare = square + direction;
-                    if (BOARD[targetSquare] == NULL) {
-                        if ((targetSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR]) {
-                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_QUEEN, square, targetSquare));
-                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_ROOK, square, targetSquare));
-                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_BISHOP, square, targetSquare));
-                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_KNIGHT, square, targetSquare));
+                    toSquare = fromSquare + direction;
+                    if (BOARD[toSquare] == NULL) {
+                        if ((toSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR]) {
+                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_QUEEN, fromSquare, toSquare, piece));
+                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_ROOK, fromSquare, toSquare, piece));
+                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_BISHOP, fromSquare, toSquare, piece));
+                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_KNIGHT, fromSquare, toSquare, piece));
                         } else {
-                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE, square, targetSquare));
+                            moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE, fromSquare, toSquare, piece));
 
-                            if ((square & RANK_MASK) == PAWN_STARTING_RANK[ACTIVE_COLOR]) {
-                                targetSquare += direction;
-                                if (BOARD[targetSquare] == NULL) {
-                                    moveList.push(createMove(MF_PAWN_PUSH_2_SQUARES, square, targetSquare));
+                            if ((fromSquare & RANK_MASK) == PAWN_STARTING_RANK[ACTIVE_COLOR]) {
+                                toSquare += direction;
+                                if (BOARD[toSquare] == NULL) {
+                                    moveList.push(createMove(MF_PAWN_PUSH_2_SQUARES, fromSquare, toSquare, piece));
                                 }
                             }
                         }
@@ -332,22 +339,22 @@ function generateMoves(captureOnly: boolean = false): number[] {
                 }
 
                 for (let lr = LEFT; lr <= RIGHT; lr += 2) {
-                    targetSquare = square + direction + lr;
-                    if (targetSquare & OUT_OF_BOARD_MASK) continue;
+                    toSquare = fromSquare + direction + lr;
+                    if (toSquare & OUT_OF_BOARD_MASK) continue;
 
-                    targetPiece = BOARD[targetSquare];
+                    targetPiece = BOARD[toSquare];
                     if (targetPiece != NULL && getPieceColor(targetPiece) != ACTIVE_COLOR) {
-                        if ((targetSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR]) {
-                            moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_QUEEN, square, targetSquare, targetPiece));
-                            moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_ROOK, square, targetSquare, targetPiece));
-                            moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_BISHOP, square, targetSquare, targetPiece));
-                            moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_KNIGHT, square, targetSquare, targetPiece));
+                        if ((toSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR]) {
+                            moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_QUEEN, fromSquare, toSquare, piece, targetPiece));
+                            moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_ROOK, fromSquare, toSquare, piece, targetPiece));
+                            moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_BISHOP, fromSquare, toSquare, piece, targetPiece));
+                            moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_KNIGHT, fromSquare, toSquare, piece, targetPiece));
                         } else {
-                            moveList.push(createMove(MF_PAWN_CAPTURE, square, targetSquare, targetPiece));
+                            moveList.push(createMove(MF_PAWN_CAPTURE, fromSquare, toSquare, piece, targetPiece));
                         }
                     }
-                    if (targetSquare == EN_PASSANT_SQUARE) {
-                        moveList.push(createMove(MF_PAWN_CAPTURE_EN_PASSANT, square, targetSquare));
+                    if (toSquare == EN_PASSANT_SQUARE) {
+                        moveList.push(createMove(MF_PAWN_CAPTURE_EN_PASSANT, fromSquare, toSquare, piece));
                     }
                 }
 
@@ -355,20 +362,20 @@ function generateMoves(captureOnly: boolean = false): number[] {
                 let slide = pieceType & PIECE_SLIDER_MASK;
                 let directions = MOVE_DIRECTIONS[pieceType];
                 for (let d = 0; d < directions.length; d++) {
-                    targetSquare = square;
+                    toSquare = fromSquare;
                     do {
-                        targetSquare += directions[d];
-                        if (targetSquare & OUT_OF_BOARD_MASK) break;
+                        toSquare += directions[d];
+                        if (toSquare & OUT_OF_BOARD_MASK) break;
 
-                        targetPiece = BOARD[targetSquare];
+                        targetPiece = BOARD[toSquare];
                         if (targetPiece != NULL) {
                             if (getPieceColor(targetPiece) != ACTIVE_COLOR) {
-                                moveList.push(createMove(MF_PIECE_CAPTURE_MOVE, square, targetSquare, targetPiece));
+                                moveList.push(createMove(MF_PIECE_CAPTURE_MOVE, fromSquare, toSquare, piece, targetPiece));
                             }
                             break;
                         }
                         if (!captureOnly) {
-                            moveList.push(createMove(MF_PIECE_NORMAL_MOVE, square, targetSquare));
+                            moveList.push(createMove(MF_PIECE_NORMAL_MOVE, fromSquare, toSquare, piece));
                         }
                     } while (slide);
                 }
@@ -384,7 +391,7 @@ function generateMoves(captureOnly: boolean = false): number[] {
 
                 if (!isSquareAttacked(kingSquare, 1 - ACTIVE_COLOR)
                     && !isSquareAttacked(kingSquare + RIGHT, 1 - ACTIVE_COLOR)) {
-                    moveList.push(createMove(MF_KINGSIDE_CASTLING, kingSquare, kingSquare + RIGHT + RIGHT));
+                    moveList.push(createMove(MF_KINGSIDE_CASTLING, kingSquare, kingSquare + RIGHT + RIGHT, BOARD[kingSquare]));
                 }
             }
         }
@@ -397,7 +404,7 @@ function generateMoves(captureOnly: boolean = false): number[] {
 
                 if (!isSquareAttacked(kingSquare, 1 - ACTIVE_COLOR)
                     && !isSquareAttacked(kingSquare + LEFT, 1 - ACTIVE_COLOR)) {
-                    moveList.push(createMove(MF_QUEENSIDE_CASTLING, kingSquare, kingSquare + LEFT + LEFT));
+                    moveList.push(createMove(MF_QUEENSIDE_CASTLING, kingSquare, kingSquare + LEFT + LEFT, BOARD[kingSquare]));
                 }
             }
         }
@@ -406,8 +413,8 @@ function generateMoves(captureOnly: boolean = false): number[] {
     return moveList;
 }
 
-function createMove(moveFlags: number, fromSquare: number, toSquare: number, capturedPiece: number = NULL): number {
-    return moveFlags | (fromSquare << 8) | (toSquare << 16) | (capturedPiece << 24);
+function createMove(moveFlags: number, fromSquare: number, toSquare: number, movingPiece: number, capturedPiece: number = NULL): number {
+    return moveFlags | (fromSquare << 8) | (toSquare << 16) | (movingPiece << 24) | (capturedPiece << 28);
 }
 
 function decodeMove(move: number): Move {
@@ -415,7 +422,8 @@ function decodeMove(move: number): Move {
         moveFlags: move & 0xFF,
         fromSquare: (move >> 8) & 0xFF,
         toSquare: (move >> 16) & 0xFF,
-        capturedPiece: (move >> 24) & 0x0F
+        movingPiece: (move >> 24) & 0x0F,
+        capturedPiece: (move >> 28) & 0x0F
     };
 }
 
@@ -561,6 +569,7 @@ function isSquareAttacked(square: number, color: number): boolean {
 }
 
 function evaluate(): number {
+    NODE_COUNT++;
     let score = 0;
     for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
         score += (getPieceCount(ACTIVE_COLOR, pieceType) - getPieceCount(1 - ACTIVE_COLOR, pieceType)) * PIECE_VALUE[pieceType];
@@ -576,15 +585,17 @@ function quiesce(alpha: number, beta: number): number {
     let moveList = generateMoves(true);
     for (let m = 0; m < moveList.length; m++) {
         makeMove(moveList[m]);
-        if (!isSquareAttacked(getKingSquare(1 - ACTIVE_COLOR), ACTIVE_COLOR)) {
-            score = -quiesce(-beta, -alpha);
-            if (score >= beta) {
-                takeback();
-                return beta;
-            }
-            if (score > alpha) alpha = score;
+
+        if (isSquareAttacked(getKingSquare(1 - ACTIVE_COLOR), ACTIVE_COLOR)) {
+            takeback();
+            continue;
         }
+
+        score = -quiesce(-beta, -alpha);
         takeback();
+
+        if (score >= beta) return beta;
+        if (score > alpha) alpha = score;
     }
 
     return alpha;
@@ -592,20 +603,59 @@ function quiesce(alpha: number, beta: number): number {
 
 function alphaBeta(alpha: number, beta: number, depth: number): number {
     if (depth == 0) return quiesce(alpha, beta);
+
+    let legalMoveCount = 0;
     let moveList = generateMoves();
     for (let m = 0; m < moveList.length; m++) {
         makeMove(moveList[m]);
-        if (!isSquareAttacked(getKingSquare(1 - ACTIVE_COLOR), ACTIVE_COLOR)) {
-            let score = -alphaBeta(-beta, -alpha, depth - 1);
-            if (score >= beta) {
-                takeback();
-                return beta;
-            }
-            if (score > alpha) alpha = score;
+
+        if (isSquareAttacked(getKingSquare(1 - ACTIVE_COLOR), ACTIVE_COLOR)) {
+            takeback();
+            continue;
         }
+
+        legalMoveCount++;
+        let score = -alphaBeta(-beta, -alpha, depth - 1);
         takeback();
+
+        if (score >= beta) return beta;
+        if (score > alpha) {
+            alpha = score;
+            if (depth == SEARCH_DEPTH) {
+                BEST_MOVE = moveList[m];
+            }
+        }
     }
+
+    if (legalMoveCount == 0) {
+        if (isSquareAttacked(getKingSquare(ACTIVE_COLOR), 1 - ACTIVE_COLOR)) {
+            return -MATE_VALUE - depth;
+        } else {
+            return 0;
+        }
+    }
+
     return alpha;
+}
+
+function search() {
+    NODE_COUNT = 0;
+    let score = 0;
+    let startTime = Date.now();
+    for (SEARCH_DEPTH = 1; SEARCH_DEPTH <= 3; SEARCH_DEPTH++) {
+        score = alphaBeta(-INFINITY, +INFINITY, SEARCH_DEPTH);
+        let time = Math.max(1, Date.now() - startTime);
+        let infoString = 'info depth ' + SEARCH_DEPTH;
+        if (Math.abs(score) >= MATE_VALUE) {
+            let mate = Math.sign(score) * Math.ceil((SEARCH_DEPTH - Math.abs(score) + MATE_VALUE) / 2);
+            infoString += ' score mate ' + mate;
+        } else {
+            infoString += ' score cp ' + score;
+        }
+        infoString += ' time ' + time + ' nodes ' + NODE_COUNT + ' nps ' + Math.round(1000 * NODE_COUNT / time) + ' pv ' + toMoveString(BEST_MOVE);
+        console.log(infoString);
+    }
+    console.log('bestmove ' + toMoveString(BEST_MOVE));
 }
 
 function perft(depth: number): number {
@@ -627,8 +677,8 @@ function perft(depth: number): number {
 ////////////////////////////////////////////////////////////////
 
 function parseMove(move: string) {
-    let fromSquare = parseSquare(move.substring(0, 1));
-    let toSquare = parseSquare(move.substring(2, 3));
+    let fromSquare = parseSquare(move.substring(0, 2));
+    let toSquare = parseSquare(move.substring(2, 4));
     let piece = BOARD[fromSquare];
     let targetPiece = BOARD[toSquare];
     let moveFlags = 0;
@@ -647,14 +697,26 @@ function parseMove(move: string) {
                 let promotedPiece = FEN_CHAR_TO_PIECE_CODE.get(move.charAt(4))!;
                 moveFlags |= (getPieceType(promotedPiece) << 5);
             }
-            return createMove(moveFlags, fromSquare, toSquare, targetPiece);
+            return createMove(moveFlags, fromSquare, toSquare, piece, targetPiece);
         case KING:
             if ((fromSquare - toSquare) == 2) moveFlags |= QUEENSIDE_CASTLING_BIT;
             if ((fromSquare - toSquare) == -2) moveFlags |= KINGSIDE_CASTLING_BIT;
-            return createMove(moveFlags, fromSquare, toSquare, targetPiece);
+            return createMove(moveFlags, fromSquare, toSquare, piece, targetPiece);
         default:
-            return createMove(moveFlags, fromSquare, toSquare, targetPiece);
+            return createMove(moveFlags, fromSquare, toSquare, piece, targetPiece);
     }
+}
+
+function toMoveString(encodedMove: number) {
+    let move = decodeMove(encodedMove);
+
+    let moveString = toSquareCoordinates(move.fromSquare) + toSquareCoordinates(move.toSquare);
+    if (move.moveFlags & PROMOTION_MASK) {
+        let promotedPiece = makePiece(getPieceColor(move.movingPiece), (move.moveFlags & PROMOTION_MASK) >> 5);
+        moveString += PIECE_CODE_TO_PRINTABLE_CHAR.get(promotedPiece);
+    }
+
+    return moveString;
 }
 
 function uci() {
@@ -693,6 +755,10 @@ function uci() {
                 break;
             case 'go':
                 // TODO
+                search();
+                break;
+            case 'stop':
+                // TODO
                 break;
             case 'quit':
                 process.exit();
@@ -714,7 +780,7 @@ function printBoard() {
     let printableBoard = '';
     for (let square = 0; square < BOARD.length; square++) {
         if (square & OUT_OF_BOARD_MASK) continue;
-        printableBoard += PIECE_CODE_TO_PRINTABLE_CHAR.get(BOARD[square]) + " ";
+        printableBoard += PIECE_CODE_TO_PRINTABLE_CHAR.get(BOARD[square]) + ' ';
         if ((square + RIGHT) & 0x08) printableBoard += '\n';
     }
     console.log(printableBoard);
@@ -722,7 +788,7 @@ function printBoard() {
 
 function printMove(encodedMove: number) {
     let move = decodeMove(encodedMove);
-    console.log(PIECE_CODE_TO_PRINTABLE_CHAR.get(BOARD[move.fromSquare]) + " moves from " + toSquareCoordinates(move.fromSquare) + " to " + toSquareCoordinates(move.toSquare));
+    console.log(PIECE_CODE_TO_PRINTABLE_CHAR.get(BOARD[move.fromSquare]) + ' moves from ' + toSquareCoordinates(move.fromSquare) + ' to ' + toSquareCoordinates(move.toSquare));
 }
 
 function printPieceList() {
@@ -787,31 +853,61 @@ function bench() {
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-bench();
-//testPerft();
+uci();
 
+//bench();
+//testPerft();
+/*
 for (let run = 1; run <= 3; run++) {
     initBoard(STARTING_FEN);
     console.time('Run ' + run);
     perft(6);
     console.timeEnd('Run ' + run);
 }
-
+*/
 /*
 initBoard('2q3k1/8/8/5N2/6P1/7K/8/8 w - - 0 1'); // 400
-console.log(alphaBeta(-100000, 100000, 6));
+printBoard();
+search();
 initBoard('6k1/5r1p/p2N4/nppP2q1/2P5/1P2N3/PQ5P/7K w - - 0 1'); // 400
-console.log(alphaBeta(-100000, 100000, 6));
+printBoard();
+search();
 initBoard('7k/8/8/4b1n1/8/8/5PPP/5R1K w - - 0 1'); // 400
-console.log(alphaBeta(-100000, 100000, 6));
+printBoard();
+search();
 initBoard('r1bqkb1r/pppp1ppp/2n5/4p3/2B1N3/5N2/PPPP1PPP/R1BQK2R b KQkq - 0 2'); // 0
-console.log(alphaBeta(-100000, 100000, 6));
+printBoard();
+search();
 initBoard('8/8/b5k1/8/8/8/1K6/3R4 w - - 0 1'); // 500
-console.log(alphaBeta(-100000, 100000, 6));
+printBoard();
+search();
 initBoard('4k2r/2n2p1p/6p1/3n4/5Q2/8/5PPP/6K1 w - - 0 1'); // 300
-console.log(alphaBeta(-100000, 100000, 6));
+printBoard();
+search();
 initBoard('r3k3/7p/6p1/5p2/5r2/2NP4/PPP2PPP/R5K1 w - - 0 1'); // 400
-console.log(alphaBeta(-100000, 100000, 6));
+printBoard();
+search();
 initBoard('8/5pk1/8/4p3/pp1qPn2/5P2/PP2B3/2Q2K2 b - - 0 1'); // 300
-console.log(alphaBeta(-100000, 100000, 6));
+printBoard();
+search();
+initBoard('B7/K1B1p1Q1/5r2/7p/1P1kp1bR/3P3R/1P1NP3/2n5 w - - 0 1'); // M2
+printBoard();
+search();
+initBoard('8/6K1/1p1B1RB1/8/2Q5/2n1kP1N/3b4/4n3 w - - 0 1'); // M2
+printBoard();
+search();
+*/
+/*
+initBoard('2k5/6R1/8/8/8/8/3K4/7R w - - 0 1'); // M1 (require depth 2)
+printBoard();
+search();
+initBoard('2k5/6R1/8/8/8/8/3K4/7R b - - 0 1'); // -M1 (require depth 3)
+printBoard();
+search();
+initBoard('k7/8/8/8/8/8/3K2R1/7R w - - 0 1'); // M2 (require depth 4)
+printBoard();
+search();
+initBoard('k7/8/8/8/8/8/3K2R1/7R b - - 0 1'); // -M3 (require depth 7)
+printBoard();
+search();
 */
