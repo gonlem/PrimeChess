@@ -331,9 +331,64 @@ function benchRemovePieceInPieceList() {
     }
 }
 
+function benchOutOfBoardDetection() {
+    let BOARD = new Uint8Array(128);
+    BOARD.fill(0);
+    BOARD.fill(8, 64, 127);
+    const OUT_OF_BOARD_MASK = 0x88;
+    
+    for (let run = 0; run < 5; run++) {
+        console.time('bench 1');
+        let count1 = 0;
+        for (let i = 0; i < 100000000; i++) {
+            for (let square = 0; square < 128; square++) {
+                if (square & OUT_OF_BOARD_MASK) continue;
+                if (square == 5) count1++;
+            }
+        }
+        console.log(count1);
+        console.timeEnd('bench 1');
+    
+        console.time('bench 2');
+        let count2 = 0;
+        for (let i = 0; i < 100000000; i++) {
+            for (let square = 0; square < 128; square++) {
+                if (BOARD[square] == 8) continue;
+                if (square == 5) count2++;
+            }
+        }
+        console.log(count2);
+        console.timeEnd('bench 2');
+    
+        console.time('bench 3');
+        let count3 = 0;
+        for (let i = 0; i < 100000000; i++) {
+            for (let square = 0; square < 128; square++) {
+                if (BOARD[square] == 0) {
+                    if (square == 5) count3++;
+                }
+            }
+        }
+        console.log(count3);
+        console.timeEnd('bench 3');
+    
+        console.time('bench 4');
+        let count4 = 0;
+        for (let i = 0; i < 100000000; i++) {
+            for (let square = 0; square < 128; square++) {
+                if (square & OUT_OF_BOARD_MASK) continue;
+                if (square == 5) count4++;
+            }
+        }
+        console.log(count4);
+        console.timeEnd('bench 4');
+    }
+}
+
 //benchBoardLoop();
 //benchPawnStartingRankDetection();
 //benchBoardArray();
 //benchMakePiece();
-benchMovePieceInPieceList();
+//benchMovePieceInPieceList();
 //benchRemovePieceInPieceList();
+benchOutOfBoardDetection();
