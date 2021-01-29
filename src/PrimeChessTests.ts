@@ -1,11 +1,19 @@
 import {
-    STARTING_FEN, WHITE, BLACK, KING, QUEEN, OUT_OF_BOARD_MASK, PIECE_CODE_TO_PRINTABLE_CHAR, RIGHT,
-    BOARD, PIECE_LIST, initBoard, makePiece, decodeMove, toSquareCoordinates, perft, search
+    WHITE, BLACK, KING, QUEEN, OUT_OF_BOARD_MASK, RIGHT, NULL,
+    WHITE_PAWN, WHITE_KNIGHT, WHITE_BISHOP, WHITE_ROOK, WHITE_QUEEN, WHITE_KING,
+    BLACK_PAWN, BLACK_KNIGHT, BLACK_BISHOP, BLACK_ROOK, BLACK_QUEEN, BLACK_KING,
+    BOARD, PIECE_LIST, initBoard, makePiece, getFromSquare, getToSquare, toSquareCoordinates, perft, search
 } from './PrimeChess.js';
 
 ////////////////////////////////////////////////////////////////
 //  DISPLAYING AND DEBUGGING FUNCTIONS                        //
 ////////////////////////////////////////////////////////////////
+
+const PIECE_CODE_TO_PRINTABLE_CHAR = new Map([
+    [WHITE_PAWN, '\u2659'], [WHITE_KNIGHT, '\u2658'], [WHITE_BISHOP, '\u2657'], [WHITE_ROOK, '\u2656'], [WHITE_QUEEN, '\u2655'], [WHITE_KING, '\u2654'],
+    [BLACK_PAWN, '\u265F'], [BLACK_KNIGHT, '\u265E'], [BLACK_BISHOP, '\u265D'], [BLACK_ROOK, '\u265C'], [BLACK_QUEEN, '\u265B'], [BLACK_KING, '\u265A'],
+    [NULL, '.']
+]);
 
 function printBoard() {
     let printableBoard = '';
@@ -17,9 +25,10 @@ function printBoard() {
     console.log(printableBoard);
 }
 
-function printMove(encodedMove: number) {
-    let move = decodeMove(encodedMove);
-    console.log(PIECE_CODE_TO_PRINTABLE_CHAR.get(BOARD[move.fromSquare]) + ' moves from ' + toSquareCoordinates(move.fromSquare) + ' to ' + toSquareCoordinates(move.toSquare));
+function printMove(move: number) {
+    let fromSquare = getFromSquare(move);
+    let toSquare = getToSquare(move);
+    console.log(PIECE_CODE_TO_PRINTABLE_CHAR.get(BOARD[fromSquare]) + ' moves from ' + toSquareCoordinates(fromSquare) + ' to ' + toSquareCoordinates(toSquare));
 }
 
 function printPieceList() {
@@ -57,26 +66,29 @@ function testPerft() {
         printBoard();
         for (let depth = 0; depth < perftCounts.length; depth++) {
             let perftCount = perft(depth);
-            console.log('Depth = ' + depth + ' ; Perft = ' + perftCount + ' ; ' + (perftCount == perftCounts[depth]));
+            console.log('Depth = ' + depth + ' ; Perft = ' + perftCount);
+            console.assert((perftCount == perftCounts[depth]), 'Wrong perft at depth ' + depth + ', expected count was ' + perftCounts[depth]);
         }
         console.log('========================================');
     });
 }
 
 function bench() {
-    let benchPositions = [
-        'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-        'r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1',
-        '8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 0',
-        'rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8'
-    ];
+    let benchPositions = new Map<string, number>();
+    benchPositions.set('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 6);
+    benchPositions.set('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1', 5);
+    benchPositions.set('8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 0', 7);
+    benchPositions.set('rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8', 5);
+
     for (let run = 1; run <= 3; run++) {
-        console.time('Run ' + run);
-        for (let p = 0; p < benchPositions.length; p++) {
-            initBoard(benchPositions[p]);
-            perft(5);
-        }
-        console.timeEnd('Run ' + run);
+        console.time('Run ' + run + ': Total time');
+        benchPositions.forEach((depth, fenString) => {
+            console.time('Run ' + run + ': Position ' + fenString);
+            initBoard(fenString);
+            perft(depth);
+            console.timeEnd('Run ' + run + ': Position ' + fenString);
+        });
+        console.timeEnd('Run ' + run + ': Total time');
     }
 }
 
@@ -86,15 +98,9 @@ function bench() {
 
 bench();
 
-testPerft();
+//testPerft();
 
-for (let run = 1; run <= 3; run++) {
-    initBoard(STARTING_FEN);
-    console.time('Run ' + run);
-    perft(6);
-    console.timeEnd('Run ' + run);
-}
-
+/*
 initBoard('2q3k1/8/8/5N2/6P1/7K/8/8 w - - 0 1'); // 400
 printBoard();
 search();
@@ -125,7 +131,6 @@ search();
 initBoard('8/6K1/1p1B1RB1/8/2Q5/2n1kP1N/3b4/4n3 w - - 0 1'); // M2
 printBoard();
 search();
-
 initBoard('2k5/6R1/8/8/8/8/3K4/7R w - - 0 1'); // M1 (require depth 2)
 printBoard();
 search();
@@ -138,3 +143,4 @@ search();
 initBoard('k7/8/8/8/8/8/3K2R1/7R b - - 0 1'); // -M3 (require depth 7)
 printBoard();
 search();
+*/
