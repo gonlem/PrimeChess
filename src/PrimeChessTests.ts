@@ -96,51 +96,37 @@ function bench() {
 //  TESTS                                                     //
 ////////////////////////////////////////////////////////////////
 
-bench();
+//bench();
 
 //testPerft();
 
-/*
+console.time('Total seach time');
 initBoard('2q3k1/8/8/5N2/6P1/7K/8/8 w - - 0 1'); // 400
-printBoard();
 search();
 initBoard('6k1/5r1p/p2N4/nppP2q1/2P5/1P2N3/PQ5P/7K w - - 0 1'); // 400
-printBoard();
 search();
 initBoard('7k/8/8/4b1n1/8/8/5PPP/5R1K w - - 0 1'); // 400
-printBoard();
 search();
 initBoard('r1bqkb1r/pppp1ppp/2n5/4p3/2B1N3/5N2/PPPP1PPP/R1BQK2R b KQkq - 0 2'); // 0
-printBoard();
 search();
 initBoard('8/8/b5k1/8/8/8/1K6/3R4 w - - 0 1'); // 500
-printBoard();
 search();
 initBoard('4k2r/2n2p1p/6p1/3n4/5Q2/8/5PPP/6K1 w - - 0 1'); // 300
-printBoard();
 search();
 initBoard('r3k3/7p/6p1/5p2/5r2/2NP4/PPP2PPP/R5K1 w - - 0 1'); // 400
-printBoard();
 search();
 initBoard('8/5pk1/8/4p3/pp1qPn2/5P2/PP2B3/2Q2K2 b - - 0 1'); // 300
-printBoard();
 search();
 initBoard('B7/K1B1p1Q1/5r2/7p/1P1kp1bR/3P3R/1P1NP3/2n5 w - - 0 1'); // M2
-printBoard();
 search();
 initBoard('8/6K1/1p1B1RB1/8/2Q5/2n1kP1N/3b4/4n3 w - - 0 1'); // M2
-printBoard();
 search();
 initBoard('2k5/6R1/8/8/8/8/3K4/7R w - - 0 1'); // M1 (require depth 2)
-printBoard();
 search();
 initBoard('2k5/6R1/8/8/8/8/3K4/7R b - - 0 1'); // -M1 (require depth 3)
-printBoard();
 search();
 initBoard('k7/8/8/8/8/8/3K2R1/7R w - - 0 1'); // M2 (require depth 4)
-printBoard();
 search();
 initBoard('k7/8/8/8/8/8/3K2R1/7R b - - 0 1'); // -M3 (require depth 7)
-printBoard();
 search();
-*/
+console.timeEnd('Total seach time');
