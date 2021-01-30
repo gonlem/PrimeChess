@@ -96,10 +96,10 @@ function bench() {
 //  TESTS                                                     //
 ////////////////////////////////////////////////////////////////
 
-//bench();
-
+bench();
 //testPerft();
 
+/*
 console.time('Total seach time');
 initBoard('2q3k1/8/8/5N2/6P1/7K/8/8 w - - 0 1'); // 400
 search();
@@ -130,3 +130,4 @@ search();
 initBoard('k7/8/8/8/8/8/3K2R1/7R b - - 0 1'); // -M3 (require depth 7)
 search();
 console.timeEnd('Total seach time');
+*/
