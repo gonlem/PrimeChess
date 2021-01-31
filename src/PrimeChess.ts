@@ -189,10 +189,6 @@ function getPieceType(piece: number) {
     return (piece & PIECE_TYPE_MASK);
 }
 
-function getPieceCount(color: number, pieceType: number) {
-    return PIECE_LIST[color * 80 + pieceType];
-}
-
 function getKingSquare(color: number) {
     return PIECE_LIST[makePiece(color, KING) * 10];
 }
@@ -402,10 +398,11 @@ function generateMoves(captureOnly: boolean = false): number[] {
         }
     }
 
-    return sortCaptureMovesList(moveList);
+    //return moveList;
+    return sortMoveList(moveList);
 }
 
-function sortCaptureMovesList(moves: number[]) {
+function sortMoveList(moves: number[]) {
     let j = 0;
     let key = 0;
     let capturedPiece = 0;
@@ -420,6 +417,28 @@ function sortCaptureMovesList(moves: number[]) {
         moves[j + 1] = key;
     }
     return moves;
+}
+
+function sortNextMove1(moveList: number[], i: number) {
+    for (let j = i + 1; j < moveList.length; j++) {
+        if (getCapturedPiece(moveList[i]) < getCapturedPiece(moveList[j])) {
+            let move = moveList[i];
+            moveList[i] = moveList[j];
+            moveList[j] = move;
+        }
+    }
+}
+
+function sortNextMove2(moveList: number[], i: number) {
+    let best = i;
+    for (let j = i + 1; j < moveList.length; j++) {
+        if (getCapturedPiece(moveList[best]) < getCapturedPiece(moveList[j])) {
+            best = j;
+        }
+    }
+    let move = moveList[i];
+    moveList[i] = moveList[best];
+    moveList[best] = move;
 }
 
 function createMove(moveFlags: number, fromSquare: number, toSquare: number, capturedPiece: number = NULL): number {
@@ -589,7 +608,7 @@ function evaluate(): number {
     NODE_COUNT++;
     let score = 0;
     for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
-        score += (getPieceCount(ACTIVE_COLOR, pieceType) - getPieceCount(1 - ACTIVE_COLOR, pieceType)) * PIECE_VALUE[pieceType];
+        score += (PIECE_COUNT[makePiece(ACTIVE_COLOR, pieceType)] - PIECE_COUNT[makePiece(1 - ACTIVE_COLOR, pieceType)]) * PIECE_VALUE[pieceType];
     }
     return score;
 }
@@ -601,6 +620,7 @@ function quiesce(alpha: number, beta: number): number {
 
     let moveList = generateMoves(true);
     for (let m = 0; m < moveList.length; m++) {
+        //sortNextMove(moveList, m);
         makeMove(moveList[m]);
 
         if (isSquareAttacked(getKingSquare(1 - ACTIVE_COLOR), ACTIVE_COLOR)) {
@@ -624,6 +644,7 @@ function alphaBeta(alpha: number, beta: number, depth: number): number {
     let legalMoveCount = 0;
     let moveList = generateMoves();
     for (let m = 0; m < moveList.length; m++) {
+        //sortNextMove(moveList, m);
         makeMove(moveList[m]);
 
         if (isSquareAttacked(getKingSquare(1 - ACTIVE_COLOR), ACTIVE_COLOR)) {
@@ -660,7 +681,7 @@ function search() {
 
     let score = 0;
     let startTime = Date.now();
-    for (SEARCH_DEPTH = 1; SEARCH_DEPTH <= 5; SEARCH_DEPTH++) {
+    for (SEARCH_DEPTH = 7; SEARCH_DEPTH <= 7; SEARCH_DEPTH++) {
         score = alphaBeta(-INFINITY, +INFINITY, SEARCH_DEPTH);
         let time = Math.max(1, Date.now() - startTime);
         let infoString = 'info depth ' + SEARCH_DEPTH;
@@ -674,6 +695,13 @@ function search() {
         console.log(infoString);
     }
     console.log('bestmove ' + toMoveString(BEST_MOVE));
+}
+
+function search2() {
+    NODE_COUNT = 0;
+    SEARCH_DEPTH = 7;
+    let score = alphaBeta(-INFINITY, +INFINITY, SEARCH_DEPTH);
+    console.log('score = ' + score + ' ; bestmove = ' + toMoveString(BEST_MOVE) + ' ; nodes = ' + NODE_COUNT);
 }
 
 function perft(depth: number): number {
