@@ -92,42 +92,38 @@ function bench() {
     }
 }
 
+function testSearch() {
+    let testPositions = [
+        '8/7k/6pp/3N4/3bR3/6P1/5r2/6K1 b - - 0 1',
+        'r5k1/1p1bqpp1/p2bp2p/8/8/1BP2N1P/PP2QPP1/2KR4 w - - 0 1',
+        '2Q5/1p6/8/8/8/3b4/K2k4/2q5 w - - 0 1',
+        '2r2r1k/pp4pp/8/4Q1N1/5P2/1BP4P/P5PK/q7 w - - 0 1',
+        '3r1rk1/1p4b1/2p1qp2/5Rp1/pP1P2R1/P1PQ4/1B3P1P/6K1 b - - 0 1',
+        '2r2r1k/pb4pp/1p6/4Np2/2BPnP2/1P2R3/PB1b2PP/2R4K w - - 0 1',
+        '2r2rk1/p2nbppp/1p3n2/8/N2p4/P3PN2/1P1B1PPP/3R1RK1 b - - 0 1',
+        '1r2r1k1/pP3ppp/8/8/2NR3q/2P2P1n/PP2QP2/R1B2K2 b - - 0 1',
+        'b1Rr1k2/3r2p1/p3p3/1p4N1/1P2P3/P4P1Q/1q4PP/2R4K b - - 0 1',
+        '6k1/2p2R2/1p4p1/1r2p3/3rP3/K7/8/5R2 w - - 0 1',
+        '5rk1/pp2q1p1/4p3/3pPpN1/6b1/3Q4/PPP2P2/2K3R1 w - - 0 1',
+        '8/8/8/7p/8/2B2k1P/3K4/8 w - - 0 1',
+    ];
+
+    for (let run = 1; run <= 3; run++) {
+        console.time('Run ' + run + ': Total time');
+        testPositions.forEach((fenString) => {
+            console.time('Run ' + run + ': Position ' + fenString);
+            initBoard(fenString);
+            search();
+            console.timeEnd('Run ' + run + ': Position ' + fenString);
+        });
+        console.timeEnd('Run ' + run + ': Total time');
+    }
+}
+
 ////////////////////////////////////////////////////////////////
 //  TESTS                                                     //
 ////////////////////////////////////////////////////////////////
 
 //bench();
 //testPerft();
-
-console.time('Total seach time');
-initBoard('2q3k1/8/8/5N2/6P1/7K/8/8 w - - 0 1'); // 400 f5e7
-search();
-initBoard('6k1/5r1p/p2N4/nppP2q1/2P5/1P2N3/PQ5P/7K w - - 0 1'); // 400 b2h8
-search();
-initBoard('7k/8/8/4b1n1/8/8/5PPP/5R1K w - - 0 1'); // 400 f2f4
-search();
-initBoard('r1bqkb1r/pppp1ppp/2n5/4p3/2B1N3/5N2/PPPP1PPP/R1BQK2R b KQkq - 0 2'); // 0 d7d5
-search();
-initBoard('8/8/b5k1/8/8/8/1K6/3R4 w - - 0 1'); // 500 d1d6
-search();
-initBoard('4k2r/2n2p1p/6p1/3n4/5Q2/8/5PPP/6K1 w - - 0 1'); // 300 f4e5
-search();
-initBoard('r3k3/7p/6p1/5p2/5r2/2NP4/PPP2PPP/R5K1 w - - 0 1'); // 400 c3d5
-search();
-initBoard('8/5pk1/8/4p3/pp1qPn2/5P2/PP2B3/2Q2K2 b - - 0 1'); // 300 d4g1
-search();
-
-initBoard('B7/K1B1p1Q1/5r2/7p/1P1kp1bR/3P3R/1P1NP3/2n5 w - - 0 1'); // M2
-search();
-initBoard('8/6K1/1p1B1RB1/8/2Q5/2n1kP1N/3b4/4n3 w - - 0 1'); // M2
-search();
-initBoard('2k5/6R1/8/8/8/8/3K4/7R w - - 0 1'); // M1 (require depth 2)
-search();
-initBoard('2k5/6R1/8/8/8/8/3K4/7R b - - 0 1'); // -M1 (require depth 3)
-search();
-initBoard('k7/8/8/8/8/8/3K2R1/7R w - - 0 1'); // M2 (require depth 4)
-search();
-initBoard('k7/8/8/8/8/8/3K2R1/7R b - - 0 1'); // -M3 (require depth 7)
-search();
-
-console.timeEnd('Total seach time');
+testSearch();
