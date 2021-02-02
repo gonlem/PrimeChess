@@ -220,7 +220,14 @@ let MOVE_NUMBER = 1;
 
 let NODE_COUNT = 0;
 let SEARCH_DEPTH = 0;
-let BEST_MOVE = 0;
+let BEST_MOVE: number[] = [];
+
+let TIME_LIMIT = Number.MAX_SAFE_INTEGER;
+let DEPTH_LIMIT = 7;
+let NODE_LIMIT = Number.MAX_SAFE_INTEGER;
+let STOP_SEARCH = false;
+let FORCE_STOP = false;
+let SEARCH_STARTING_TIME = Date.now();
 
 ////////////////////////////////////////////////////////////////
 //  FUNCTIONS                                                 //
@@ -638,6 +645,14 @@ function isSquareAttacked(square: number, color: number): boolean {
     return false;
 }
 
+function checkStopConditions() {
+    if (FORCE_STOP && (NODE_COUNT & 2047)) {
+        if ((Date.now() - SEARCH_STARTING_TIME > TIME_LIMIT - 10) || (NODE_COUNT + 2048 > NODE_LIMIT)) {
+            STOP_SEARCH = true;
+        }
+    }
+}
+
 function evaluateMaterial(color: number): number {
     let score = 0;
     for (let pieceType = PAWN; pieceType <= QUEEN; pieceType++) {
@@ -654,7 +669,6 @@ function evaluatePST(color: number): number {
         let pieceCount = PIECE_COUNT[piece];
         for (let p = 0; p < pieceCount; p++) {
             let square = PIECE_LIST[10 * piece + p];
-            // if (color == BLACK) square = (~square & RANK_MASK) | (square & FILE_MASK);
             score += PIECE_SQUARE_TABLES[pstIndex + square];
         }
     }
@@ -663,6 +677,7 @@ function evaluatePST(color: number): number {
 
 function evaluate(): number {
     NODE_COUNT++;
+    checkStopConditions();
 
     let score = 0;
     score += evaluateMaterial(ACTIVE_COLOR) - evaluateMaterial(1 - ACTIVE_COLOR);
@@ -674,6 +689,7 @@ function quiesce(alpha: number, beta: number): number {
     let score = evaluate();
     if (score >= beta) return beta;
     if (score > alpha) alpha = score;
+    if (STOP_SEARCH) return alpha;
 
     let moveList = generateMoves(true);
     for (let m = 0; m < moveList.length; m++) {
@@ -689,6 +705,7 @@ function quiesce(alpha: number, beta: number): number {
 
         if (score >= beta) return beta;
         if (score > alpha) alpha = score;
+        if (STOP_SEARCH) return alpha;
     }
 
     return alpha;
@@ -710,14 +727,15 @@ function alphaBeta(alpha: number, beta: number, depth: number): number {
         legalMoveCount++;
         let score = -alphaBeta(-beta, -alpha, depth - 1);
         takeback();
-
+        
         if (score >= beta) return beta;
         if (score > alpha) {
             alpha = score;
             if (depth == SEARCH_DEPTH) {
-                BEST_MOVE = moveList[m];
+                BEST_MOVE[SEARCH_DEPTH] = moveList[m];
             }
         }
+        if (STOP_SEARCH) return alpha;
     }
 
     if (legalMoveCount == 0) {
@@ -733,12 +751,16 @@ function alphaBeta(alpha: number, beta: number, depth: number): number {
 
 function search() {
     NODE_COUNT = 0;
+    SEARCH_DEPTH = 0;
+    SEARCH_STARTING_TIME = Date.now();
 
     let score = 0;
-    let startTime = Date.now();
-    for (SEARCH_DEPTH = 7; SEARCH_DEPTH <= 7; SEARCH_DEPTH++) {
+    let elapsedTime = 0;
+    do {
+        SEARCH_DEPTH++;
         score = alphaBeta(-INFINITY, +INFINITY, SEARCH_DEPTH);
-        let time = Math.max(1, Date.now() - startTime);
+        if (STOP_SEARCH) break;
+        elapsedTime = Math.max(1, Date.now() - SEARCH_STARTING_TIME);
         let infoString = 'info depth ' + SEARCH_DEPTH;
         if (Math.abs(score) >= MATE_VALUE) {
             let mate = Math.sign(score) * Math.ceil((SEARCH_DEPTH - Math.abs(score) + MATE_VALUE) / 2);
@@ -746,10 +768,12 @@ function search() {
         } else {
             infoString += ' score cp ' + score;
         }
-        infoString += ' time ' + time + ' nodes ' + NODE_COUNT + ' nps ' + Math.round(1000 * NODE_COUNT / time) + ' pv ' + toMoveString(BEST_MOVE);
+        infoString += ' time ' + elapsedTime + ' nodes ' + NODE_COUNT + ' nps ' + Math.round(1000 * NODE_COUNT / elapsedTime) + ' pv ' + toMoveString(BEST_MOVE[SEARCH_DEPTH]);
         console.log(infoString);
-    }
-    console.log('bestmove ' + toMoveString(BEST_MOVE));
+    } while ((SEARCH_DEPTH < DEPTH_LIMIT) && (elapsedTime < (TIME_LIMIT / 4)));
+
+    if (STOP_SEARCH) SEARCH_DEPTH--;
+    console.log('bestmove ' + toMoveString(BEST_MOVE[SEARCH_DEPTH]));
 }
 
 function perft(depth: number): number {
@@ -810,6 +834,41 @@ function toMoveString(move: number) {
     return moveString;
 }
 
+function parseGoCommand(commandParts: string[]) {
+    TIME_LIMIT = Number.MAX_SAFE_INTEGER;
+    DEPTH_LIMIT = Number.MAX_SAFE_INTEGER;
+    NODE_LIMIT = Number.MAX_SAFE_INTEGER;
+    STOP_SEARCH = false;
+    FORCE_STOP = true;
+
+    switch (commandParts[1]) {
+        case 'depth':
+            DEPTH_LIMIT = parseInt(commandParts[2], 10);
+            break;
+        case 'nodes':
+            NODE_LIMIT = parseInt(commandParts[2], 10);
+            break;
+        case 'movetime':
+            TIME_LIMIT = parseInt(commandParts[2], 10);
+            break;
+        case 'infinite':
+            break;
+        default:
+            let availableTime = (ACTIVE_COLOR == WHITE) ? commandParts.indexOf('wtime') : commandParts.indexOf('btime');
+            if (availableTime > 0) availableTime = parseInt(commandParts[availableTime + 1], 10);
+            let increment = (ACTIVE_COLOR == WHITE) ? commandParts.indexOf('winc') : commandParts.indexOf('binc');
+            if (increment > 0) increment = parseInt(commandParts[increment + 1], 10);
+            let movesToGo = commandParts.indexOf('movestogo');
+            if (movesToGo > 0) {
+                movesToGo = Math.min(40, parseInt(commandParts[movesToGo + 1], 10));
+            } else {
+                movesToGo = 40;
+            }
+            if (movesToGo > 3) FORCE_STOP = false;
+            TIME_LIMIT = (availableTime / movesToGo) + increment;
+    }
+}
+
 function uci() {
     const readline = require('readline');
     const rl = readline.createInterface({
@@ -845,11 +904,11 @@ function uci() {
                 }
                 break;
             case 'go':
-                // TODO
+                parseGoCommand(commandParts);
                 search();
                 break;
             case 'stop':
-                // TODO
+                STOP_SEARCH = true;
                 break;
             case 'quit':
                 process.exit();
@@ -861,7 +920,7 @@ function uci() {
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-//uci();
+uci();
 
 export {
     WHITE, BLACK, KING, QUEEN, OUT_OF_BOARD_MASK, RIGHT, NULL,
