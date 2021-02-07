@@ -220,10 +220,11 @@ let MOVE_NUMBER = 1;
 
 let NODE_COUNT = 0;
 let SEARCH_DEPTH = 0;
-let BEST_MOVE: number[] = [];
+let PV_TABLE: number[] = [];
+let FOLLOW_PV = false;
 
 let TIME_LIMIT = Number.MAX_SAFE_INTEGER;
-let DEPTH_LIMIT = 7;
+let DEPTH_LIMIT = 8;
 let NODE_LIMIT = Number.MAX_SAFE_INTEGER;
 let STOP_SEARCH = false;
 let FORCE_STOP = false;
@@ -645,6 +646,21 @@ function isSquareAttacked(square: number, color: number): boolean {
     return false;
 }
 
+function savePrincipalVariation(move: number, depth: number) {
+    let index = (SEARCH_DEPTH - depth) * (SEARCH_DEPTH + 1);
+    PV_TABLE[index] = move;
+    for (let p = 1; p <= depth; p++) {
+        PV_TABLE[index + p] = PV_TABLE[index + p + SEARCH_DEPTH];
+    }
+}
+
+function cleanPrincipalVariation(depth: number) {
+    let index = (SEARCH_DEPTH - depth) * (SEARCH_DEPTH + 1);
+    for (let p = 0; p < depth; p++) {
+        PV_TABLE[index + p] = 0;
+    }
+}
+
 function checkStopConditions() {
     if (FORCE_STOP && (NODE_COUNT & 2047)) {
         if ((Date.now() - SEARCH_STARTING_TIME > TIME_LIMIT - 10) || (NODE_COUNT + 2048 > NODE_LIMIT)) {
@@ -685,6 +701,21 @@ function evaluate(): number {
     return score;
 }
 
+function sortPVMove(moveList: number[], depth: number) {
+    let pvMove = PV_TABLE[SEARCH_DEPTH - depth];
+    if (depth <= 1 || pvMove == NULL) {
+        FOLLOW_PV = false;
+        return;
+    }
+    let i = 0;
+    while (moveList[i] != pvMove) i++;
+    while (i > 0) {
+        moveList[i] = moveList[i - 1];
+        i--;
+    }
+    moveList[0] = pvMove;
+}
+
 function quiesce(alpha: number, beta: number): number {
     let score = evaluate();
     if (score >= beta) return beta;
@@ -694,12 +725,10 @@ function quiesce(alpha: number, beta: number): number {
     let moveList = generateMoves(true);
     for (let m = 0; m < moveList.length; m++) {
         makeMove(moveList[m]);
-
         if (isSquareAttacked(getKingSquare(1 - ACTIVE_COLOR), ACTIVE_COLOR)) {
             takeback();
             continue;
         }
-
         score = -quiesce(-beta, -alpha);
         takeback();
 
@@ -717,13 +746,13 @@ function alphaBeta(alpha: number, beta: number, depth: number): number {
     let legalMoveCount = 0;
     let moveList = generateMoves();
     for (let m = 0; m < moveList.length; m++) {
-        makeMove(moveList[m]);
+        if (FOLLOW_PV) sortPVMove(moveList, depth);
 
+        makeMove(moveList[m]);
         if (isSquareAttacked(getKingSquare(1 - ACTIVE_COLOR), ACTIVE_COLOR)) {
             takeback();
             continue;
         }
-
         legalMoveCount++;
         let score = -alphaBeta(-beta, -alpha, depth - 1);
         takeback();
@@ -731,14 +760,13 @@ function alphaBeta(alpha: number, beta: number, depth: number): number {
         if (score >= beta) return beta;
         if (score > alpha) {
             alpha = score;
-            if (depth == SEARCH_DEPTH) {
-                BEST_MOVE[SEARCH_DEPTH] = moveList[m];
-            }
+            savePrincipalVariation(moveList[m], depth);
         }
         if (STOP_SEARCH) return alpha;
     }
 
     if (legalMoveCount == 0) {
+        cleanPrincipalVariation(depth);
         if (isSquareAttacked(getKingSquare(ACTIVE_COLOR), 1 - ACTIVE_COLOR)) {
             return -MATE_VALUE - depth;
         } else {
@@ -749,6 +777,21 @@ function alphaBeta(alpha: number, beta: number, depth: number): number {
     return alpha;
 }
 
+function writeInfoString(score: number, elapsedTime: number) {
+    let infoString = 'info depth ' + SEARCH_DEPTH;
+    if (Math.abs(score) >= MATE_VALUE) {
+        let mate = Math.sign(score) * Math.ceil((MATE_VALUE + SEARCH_DEPTH - Math.abs(score)) / 2);
+        infoString += ' score mate ' + mate;
+    } else {
+        infoString += ' score cp ' + score;
+    }
+    infoString += ' time ' + elapsedTime + ' nodes ' + NODE_COUNT + ' nps ' + Math.round(1000 * NODE_COUNT / elapsedTime) + ' pv';
+    for (let i = 0; i < SEARCH_DEPTH; i++) {
+        if (PV_TABLE[i] != NULL) infoString += ' ' + toMoveString(PV_TABLE[i]);
+    }
+    console.log(infoString);
+}
+
 function search() {
     NODE_COUNT = 0;
     SEARCH_DEPTH = 0;
@@ -756,24 +799,18 @@ function search() {
 
     let score = 0;
     let elapsedTime = 0;
+    let bestMove = 0;
     do {
         SEARCH_DEPTH++;
         score = alphaBeta(-INFINITY, +INFINITY, SEARCH_DEPTH);
         if (STOP_SEARCH) break;
+        bestMove = PV_TABLE[0];
+        FOLLOW_PV = true;
         elapsedTime = Math.max(1, Date.now() - SEARCH_STARTING_TIME);
-        let infoString = 'info depth ' + SEARCH_DEPTH;
-        if (Math.abs(score) >= MATE_VALUE) {
-            let mate = Math.sign(score) * Math.ceil((SEARCH_DEPTH - Math.abs(score) + MATE_VALUE) / 2);
-            infoString += ' score mate ' + mate;
-        } else {
-            infoString += ' score cp ' + score;
-        }
-        infoString += ' time ' + elapsedTime + ' nodes ' + NODE_COUNT + ' nps ' + Math.round(1000 * NODE_COUNT / elapsedTime) + ' pv ' + toMoveString(BEST_MOVE[SEARCH_DEPTH]);
-        console.log(infoString);
+        writeInfoString(score, elapsedTime);
     } while ((SEARCH_DEPTH < DEPTH_LIMIT) && (elapsedTime < (TIME_LIMIT / 4)));
 
-    if (STOP_SEARCH) SEARCH_DEPTH--;
-    console.log('bestmove ' + toMoveString(BEST_MOVE[SEARCH_DEPTH]));
+    console.log('bestmove ' + toMoveString(bestMove));
 }
 
 function perft(depth: number): number {
