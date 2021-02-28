@@ -229,44 +229,39 @@ function clearBoard() {
     MOVE_NUMBER = 1;
 }
 
-function initBoardFromFen(fen: string) {
+function initBoard(fen: string = STARTING_FEN) {
     let fenParts = fen.split(' ');
-
-    let fenBoard = fenParts[0];
-    let fenActiveColor = fenParts[1];
-    let fenCastlingRights = fenParts[2];
-    let fenEnPassantSquare = fenParts[3];
-    let fenHalfMoveClock = fenParts[4];
-    let fenFullMoveCount = fenParts[5];
-
     clearBoard();
 
+    let fenBoard = fenParts[0];
     let index = 0;
     for (let c of fenBoard) {
         if (c == '/') {
             index += 8;
         } else if (isNaN(parseInt(c, 10))) {
-            let piece = FEN_CHAR_TO_PIECE_CODE.get(c)!;
-            addPiece(piece, index);
+            addPiece(FEN_CHAR_TO_PIECE_CODE.get(c)!, index);
             index += 1;
         } else {
             index += parseInt(c, 10);
         }
     }
 
+    let fenActiveColor = fenParts[1];
     if (fenActiveColor == 'b') ACTIVE_COLOR = BLACK;
 
+    let fenCastlingRights = fenParts[2];
     if (fenCastlingRights.includes('K')) CASTLING_RIGHTS[WHITE] |= KINGSIDE_CASTLING_BIT;
     if (fenCastlingRights.includes('Q')) CASTLING_RIGHTS[WHITE] |= QUEENSIDE_CASTLING_BIT;
     if (fenCastlingRights.includes('k')) CASTLING_RIGHTS[BLACK] |= KINGSIDE_CASTLING_BIT;
     if (fenCastlingRights.includes('q')) CASTLING_RIGHTS[BLACK] |= QUEENSIDE_CASTLING_BIT;
 
-    if (fenEnPassantSquare != '-') {
-        EN_PASSANT_SQUARE = parseSquare(fenEnPassantSquare);
-    }
+    let fenEnPassantSquare = fenParts[3];
+    if (fenEnPassantSquare != '-') EN_PASSANT_SQUARE = parseSquare(fenEnPassantSquare);
 
+    let fenHalfMoveClock = fenParts[4];
     PLY_CLOCK = parseInt(fenHalfMoveClock, 10);
 
+    let fenFullMoveCount = fenParts[5];
     MOVE_NUMBER = parseInt(fenFullMoveCount, 10);
 }
 
@@ -585,7 +580,7 @@ function testPerft() {
 
     console.log('========================================');
     perftTests.forEach((perftCounts, fenString) => {
-        initBoardFromFen(fenString);
+        initBoard(fenString);
         printBoard();
         for (let depth = 0; depth < perftCounts.length; depth++) {
             let perftCount = perft(depth);
@@ -607,7 +602,7 @@ function bench() {
         console.time('Run ' + run + ': Total time');
         benchPositions.forEach((depth, fenString) => {
             console.time('Run ' + run + ': Position ' + fenString);
-            initBoardFromFen(fenString);
+            initBoard(fenString);
             perft(depth);
             console.timeEnd('Run ' + run + ': Position ' + fenString);
         });
