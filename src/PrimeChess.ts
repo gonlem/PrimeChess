@@ -504,7 +504,8 @@ function takeback(): void {
 }
 
 function isSquareAttacked(square: number, color: number): boolean {
-    for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
+    let coloredQueen = makePiece(color, QUEEN);
+    for (let pieceType = ROOK; pieceType >= KING; pieceType--) {
         let piece = makePiece(color, pieceType);
         if (pieceType == PAWN) {
             let direction = DOWN * (1 - 2 * color);
@@ -525,6 +526,7 @@ function isSquareAttacked(square: number, color: number): boolean {
                     let targetPiece = BOARD[targetSquare];
                     if (targetPiece != NULL) {
                         if (targetPiece == piece) return true;
+                        if (targetPiece == coloredQueen && pieceType >= BISHOP) return true;
                         break;
                     }
                 } while (slide);
