@@ -341,16 +341,9 @@ function clearBoard() {
 
 function initBoard(fen: string = STARTING_FEN) {
     let fenParts = fen.split(' ');
-
-    let fenBoard = fenParts[0];
-    let fenActiveColor = fenParts[1];
-    let fenCastlingRights = fenParts[2];
-    let fenEnPassantSquare = fenParts[3];
-    let fenHalfMoveClock = fenParts[4];
-    let fenFullMoveCount = fenParts[5];
-
     clearBoard();
 
+    let fenBoard = fenParts[0];
     let index = 0;
     for (let c of fenBoard) {
         if (c == '/') {
@@ -364,8 +357,10 @@ function initBoard(fen: string = STARTING_FEN) {
         }
     }
 
+    let fenActiveColor = fenParts[1];
     if (fenActiveColor == 'b') ACTIVE_COLOR = BLACK;
 
+    let fenCastlingRights = fenParts[2];
     if (fenCastlingRights.includes('K')) CASTLING_RIGHTS[WHITE] |= KINGSIDE_CASTLING_BIT;
     if (fenCastlingRights.includes('Q')) CASTLING_RIGHTS[WHITE] |= QUEENSIDE_CASTLING_BIT;
     if (fenCastlingRights.includes('k')) CASTLING_RIGHTS[BLACK] |= KINGSIDE_CASTLING_BIT;
@@ -373,13 +368,14 @@ function initBoard(fen: string = STARTING_FEN) {
     POSITION_HASH_KEY ^= WHITE_CASTLING_RIGHTS_KEYS[CASTLING_RIGHTS[WHITE]];
     POSITION_HASH_KEY ^= BLACK_CASTLING_RIGHTS_KEYS[CASTLING_RIGHTS[BLACK]];
 
-    if (fenEnPassantSquare != '-') {
-        EN_PASSANT_SQUARE = parseSquare(fenEnPassantSquare);
-    }
+    let fenEnPassantSquare = fenParts[3];
+    if (fenEnPassantSquare != '-') EN_PASSANT_SQUARE = parseSquare(fenEnPassantSquare);
     POSITION_HASH_KEY ^= PIECE_SQUARE_KEYS[EN_PASSANT_SQUARE];
 
+    let fenHalfMoveClock = fenParts[4];
     FIFTY_MOVES_CLOCK = parseInt(fenHalfMoveClock, 10);
 
+    let fenFullMoveCount = fenParts[5];
     GAME_PLY = 2 * (parseInt(fenFullMoveCount, 10) - 1) + ACTIVE_COLOR;
 }
 
@@ -667,7 +663,8 @@ function takeback(): void {
 }
 
 function isSquareAttacked(square: number, color: number): boolean {
-    for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
+    let coloredQueen = makePiece(color, QUEEN);
+    for (let pieceType = ROOK; pieceType >= KING; pieceType--) {
         let piece = makePiece(color, pieceType);
         if (pieceType == PAWN) {
             let direction = DOWN * (1 - 2 * color);
@@ -688,6 +685,7 @@ function isSquareAttacked(square: number, color: number): boolean {
                     let targetPiece = BOARD[targetSquare];
                     if (targetPiece != NULL) {
                         if (targetPiece == piece) return true;
+                        if (targetPiece == coloredQueen && pieceType >= BISHOP) return true;
                         break;
                     }
                 } while (slide);
