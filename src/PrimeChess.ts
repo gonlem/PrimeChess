@@ -144,6 +144,7 @@ const MOVE_DIRECTIONS = [
 
 const INFINITY = 100000;
 const MATE_VALUE = 50000;
+const DRAW_VALUE = 0;
 const PIECE_VALUE = [0, 20000, 100, 320, 330, 500, 900];
 const PIECE_SQUARE_TABLES = new Int8Array([
     // KING
@@ -791,7 +792,6 @@ function quiesce(alpha: number, beta: number): number {
 }
 
 function alphaBeta(alpha: number, beta: number, depth: number): number {
-    if (isRepetition() || FIFTY_MOVES_CLOCK >= 100) return 0;
     if (depth == 0) return quiesce(alpha, beta);
 
     let legalMoveCount = 0;
@@ -806,6 +806,7 @@ function alphaBeta(alpha: number, beta: number, depth: number): number {
         }
         legalMoveCount++;
         let score = -alphaBeta(-beta, -alpha, depth - 1);
+        if (isRepetition() || FIFTY_MOVES_CLOCK >= 100) score = DRAW_VALUE;
         takeback();
 
         if (score >= beta) return beta;
@@ -821,14 +822,14 @@ function alphaBeta(alpha: number, beta: number, depth: number): number {
         if (isSquareAttacked(getKingSquare(ACTIVE_COLOR), 1 - ACTIVE_COLOR)) {
             return -MATE_VALUE - depth;
         } else {
-            return 0;
+            return DRAW_VALUE;
         }
     }
 
     return alpha;
 }
 
-function writeInfoString(score: number, elapsedTime: number) {
+function uciWriteInfoString(score: number, elapsedTime: number) {
     let infoString = 'info depth ' + SEARCH_DEPTH;
     if (Math.abs(score) >= MATE_VALUE) {
         let mate = Math.sign(score) * Math.ceil((MATE_VALUE + SEARCH_DEPTH - Math.abs(score)) / 2);
@@ -841,6 +842,10 @@ function writeInfoString(score: number, elapsedTime: number) {
         if (PV_TABLE[i] != NULL) infoString += ' ' + toMoveString(PV_TABLE[i]);
     }
     console.log(infoString);
+}
+
+function uciWriteBestMove(move: number) {
+    console.log('bestmove ' + toMoveString(move));
 }
 
 function search() {
@@ -858,10 +863,10 @@ function search() {
         bestMove = PV_TABLE[0];
         FOLLOW_PV = true;
         elapsedTime = Math.max(1, Date.now() - SEARCH_STARTING_TIME);
-        writeInfoString(score, elapsedTime);
+        uciWriteInfoString(score, elapsedTime);
     } while ((SEARCH_DEPTH < DEPTH_LIMIT) && (elapsedTime < (TIME_LIMIT / 4)));
 
-    console.log('bestmove ' + toMoveString(bestMove));
+    uciWriteBestMove(bestMove);
 }
 
 function perft(depth: number): number {
