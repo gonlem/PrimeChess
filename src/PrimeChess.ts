@@ -526,7 +526,7 @@ function isSquareAttacked(square: number, color: number): boolean {
                     let targetPiece = BOARD[targetSquare];
                     if (targetPiece != NULL) {
                         if (targetPiece == piece) return true;
-                        if (targetPiece == coloredQueen && pieceType >= BISHOP) return true;
+                        if (targetPiece == coloredQueen && slide) return true;
                         break;
                     }
                 } while (slide);
@@ -601,14 +601,16 @@ function bench() {
     benchPositions.set('rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8', 5);
 
     for (let run = 1; run <= 3; run++) {
-        console.time('Run ' + run + ': Total time');
+        console.time('Run ' + run + ' - Total time');
         benchPositions.forEach((depth, fenString) => {
-            console.time('Run ' + run + ': Position ' + fenString);
             initBoard(fenString);
-            perft(depth);
-            console.timeEnd('Run ' + run + ': Position ' + fenString);
+            let startTime = Date.now();
+            let nodes = perft(depth);
+            let endTime = Date.now();
+            let time = endTime - startTime;
+            console.log('Run ' + run + ' - Position : ' + fenString + ' - Nodes : ' + nodes + ' - Time : ' + time + ' - Npms : ' + Math.round(nodes / time));
         });
-        console.timeEnd('Run ' + run + ': Total time');
+        console.timeEnd('Run ' + run + ' - Total time');
     }
 }
 
