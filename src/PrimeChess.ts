@@ -498,34 +498,39 @@ function takeback(): void {
 
 function isSquareAttacked(square: number, color: number): boolean {
     let coloredQueen = makePiece(color, QUEEN);
-    for (let pieceType = ROOK; pieceType >= KING; pieceType--) {
-        let piece = makePiece(color, pieceType);
-        if (pieceType == PAWN) {
-            let direction = DOWN * (1 - 2 * color);
-            for (let lr = LEFT; lr <= RIGHT; lr += 2) {
-                let targetSquare = square + direction + lr;
-                if (!(targetSquare & OUT_OF_BOARD_MASK) && BOARD[targetSquare] == piece) {
-                    return true;
-                }
-            }
-        } else {
-            let slide = pieceType & PIECE_SLIDER_MASK;
-            let directions = MOVE_DIRECTIONS[pieceType];
-            for (let d = 0; d < directions.length; d++) {
-                let targetSquare = square;
-                do {
-                    targetSquare += directions[d];
-                    if (targetSquare & OUT_OF_BOARD_MASK) break;
-                    let targetPiece = BOARD[targetSquare];
-                    if (targetPiece != NULL) {
-                        if (targetPiece == piece) return true;
-                        if (targetPiece == coloredQueen && slide) return true;
-                        break;
-                    }
-                } while (slide);
-            }
+    let coloredKing = makePiece(color, KING);
+    let directions, d, step;
+    let piece, slide;
+    let targetSquare;
+    let targetPiece;
+    for (let pieceType = ROOK; pieceType >= KNIGHT; pieceType--) {
+        piece = makePiece(color, pieceType);
+        slide = pieceType & PIECE_SLIDER_MASK;
+        directions = MOVE_DIRECTIONS[pieceType];
+        for (d = 0; d < directions.length; d++) {
+            targetSquare = square; step = 0;
+            do {
+                targetSquare += directions[d]; step++;
+                if (targetSquare & OUT_OF_BOARD_MASK) break;
+                targetPiece = BOARD[targetSquare];
+                if (targetPiece == NULL) continue;
+                if (targetPiece == piece) return true;
+                if (targetPiece == coloredQueen && slide) return true;
+                if (step == 1 && targetPiece == coloredKing && slide) return true;
+                break;
+            } while (slide);
         }
     }
+
+    let coloredPawn = makePiece(color, PAWN);
+    let backward = DOWN * (1 - 2 * color);
+    for (let lr = LEFT; lr <= RIGHT; lr += 2) {
+        targetSquare = square + backward + lr;
+        if (!(targetSquare & OUT_OF_BOARD_MASK) && BOARD[targetSquare] == coloredPawn) {
+            return true;
+        }
+    }
+
     return false;
 }
 
