@@ -124,6 +124,9 @@ const MF_PIECE_CAPTURE_MOVE = CAPTURE_BIT;
 const MF_KINGSIDE_CASTLING = KINGSIDE_CASTLING_BIT;
 const MF_QUEENSIDE_CASTLING = QUEENSIDE_CASTLING_BIT;
 
+const KINGSIDE_CASTLING = new Uint8Array([KINGSIDE_CASTLING_BIT, KINGSIDE_CASTLING_BIT << 2]);
+const QUEENSIDE_CASTLING = new Uint8Array([QUEENSIDE_CASTLING_BIT, QUEENSIDE_CASTLING_BIT << 2]);
+
 const FEN_CHAR_TO_PIECE_CODE = new Map([
     ['P', WHITE_PAWN], ['N', WHITE_KNIGHT], ['B', WHITE_BISHOP], ['R', WHITE_ROOK], ['Q', WHITE_QUEEN], ['K', WHITE_KING],
     ['p', BLACK_PAWN], ['n', BLACK_KNIGHT], ['b', BLACK_BISHOP], ['r', BLACK_ROOK], ['q', BLACK_QUEEN], ['k', BLACK_KING]
@@ -145,6 +148,17 @@ const MOVE_DIRECTIONS = [
     [UP, RIGHT, DOWN, LEFT, UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT] // QUEEN
 ];
 
+const UPDATE_CASTLING_RIGHTS = new Uint8Array([
+     7,15,15,15, 3,15,15,11,  0, 0, 0, 0, 0, 0, 0, 0,
+    15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
+    15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
+    15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
+    15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
+    15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
+    15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
+    13,15,15,15,12,15,15,14,  0, 0, 0, 0, 0, 0, 0, 0,
+]);
+
 ////////////////////////////////////////////////////////////////
 //  GLOBAL VARIABLES                                          //
 ////////////////////////////////////////////////////////////////
@@ -156,7 +170,7 @@ let ACTIVE_COLOR = WHITE;
 let MOVE_STACK: number[] = [];
 let HISTORY_STACK: number[] = [];
 let EN_PASSANT_SQUARE = SQUARE_NULL;
-let CASTLING_RIGHTS = [NULL, NULL];
+let CASTLING_RIGHTS = NULL;
 let PLY_CLOCK = 0;
 let MOVE_NUMBER = 1;
 
@@ -224,7 +238,7 @@ function clearBoard() {
     MOVE_STACK = [];
     HISTORY_STACK = [];
     EN_PASSANT_SQUARE = SQUARE_NULL;
-    CASTLING_RIGHTS = [NULL, NULL];
+    CASTLING_RIGHTS = NULL;
     PLY_CLOCK = 0;
     MOVE_NUMBER = 1;
 }
@@ -250,10 +264,10 @@ function initBoard(fen: string = STARTING_FEN) {
     if (fenActiveColor == 'b') ACTIVE_COLOR = BLACK;
 
     let fenCastlingRights = fenParts[2];
-    if (fenCastlingRights.includes('K')) CASTLING_RIGHTS[WHITE] |= KINGSIDE_CASTLING_BIT;
-    if (fenCastlingRights.includes('Q')) CASTLING_RIGHTS[WHITE] |= QUEENSIDE_CASTLING_BIT;
-    if (fenCastlingRights.includes('k')) CASTLING_RIGHTS[BLACK] |= KINGSIDE_CASTLING_BIT;
-    if (fenCastlingRights.includes('q')) CASTLING_RIGHTS[BLACK] |= QUEENSIDE_CASTLING_BIT;
+    if (fenCastlingRights.includes('K')) CASTLING_RIGHTS |= KINGSIDE_CASTLING[WHITE];
+    if (fenCastlingRights.includes('Q')) CASTLING_RIGHTS |= QUEENSIDE_CASTLING[WHITE];
+    if (fenCastlingRights.includes('k')) CASTLING_RIGHTS |= KINGSIDE_CASTLING[BLACK];
+    if (fenCastlingRights.includes('q')) CASTLING_RIGHTS |= QUEENSIDE_CASTLING[BLACK];
 
     let fenEnPassantSquare = fenParts[3];
     if (fenEnPassantSquare != '-') EN_PASSANT_SQUARE = parseSquare(fenEnPassantSquare);
@@ -343,7 +357,7 @@ function generateMoves(): number[] {
         }
     }
 
-    if (CASTLING_RIGHTS[ACTIVE_COLOR] & KINGSIDE_CASTLING_BIT) {
+    if (KINGSIDE_CASTLING[ACTIVE_COLOR] & CASTLING_RIGHTS) {
         let kingSquare = getKingSquare(ACTIVE_COLOR);
         if (BOARD[kingSquare + RIGHT] == NULL
             && BOARD[kingSquare + RIGHT + RIGHT] == NULL) {
@@ -355,7 +369,7 @@ function generateMoves(): number[] {
         }
     }
 
-    if (CASTLING_RIGHTS[ACTIVE_COLOR] & QUEENSIDE_CASTLING_BIT) {
+    if (QUEENSIDE_CASTLING[ACTIVE_COLOR] & CASTLING_RIGHTS) {
         let kingSquare = getKingSquare(ACTIVE_COLOR);
         if (BOARD[kingSquare + LEFT] == NULL
             && BOARD[kingSquare + LEFT + LEFT] == NULL
@@ -391,20 +405,16 @@ function getCapturedPiece(move: number) {
     return (move >> 24) & 0x0F;
 }
 
-function createHistory(enPassantSquare: number, castlingRights: number[], plyClock: number): number {
-    return enPassantSquare | (castlingRights[WHITE] << 8) | (castlingRights[BLACK] << 10) | (plyClock << 12);
+function createHistory(enPassantSquare: number, castlingRights: number, plyClock: number): number {
+    return enPassantSquare | (castlingRights << 8) | (plyClock << 12);
 }
 
 function getEnPassantSquare(history: number) {
     return history & 0xFF;
 }
 
-function getWhiteCastlingRights(history: number) {
-    return (history >> 8) & 0x03;
-}
-
-function getBlackCastlingRights(history: number) {
-    return (history >> 10) & 0x03;
+function getCastlingRights(history: number) {
+    return (history >> 8) & 0x0F;
 }
 
 function getPlyClock(history: number) {
@@ -446,20 +456,14 @@ function makeMove(move: number): void {
         movePiece(fromSquare, toSquare);
     }
 
-    if ((BOARD[toSquare] & PIECE_TYPE_MASK) == KING) {
-        CASTLING_RIGHTS[ACTIVE_COLOR] = NULL;
-
-        if (moveFlags & KINGSIDE_CASTLING_BIT) {
-            movePiece(toSquare + RIGHT, toSquare + LEFT);
-        } else if (moveFlags & QUEENSIDE_CASTLING_BIT) {
-            movePiece(toSquare + LEFT + LEFT, toSquare + RIGHT);
-        }
+    if (moveFlags & KINGSIDE_CASTLING_BIT) {
+        movePiece(toSquare + RIGHT, toSquare + LEFT);
+    } else if (moveFlags & QUEENSIDE_CASTLING_BIT) {
+        movePiece(toSquare + LEFT + LEFT, toSquare + RIGHT);
     }
 
-    if (fromSquare == A1 || toSquare == A1) CASTLING_RIGHTS[WHITE] &= KINGSIDE_CASTLING_BIT;
-    if (fromSquare == H1 || toSquare == H1) CASTLING_RIGHTS[WHITE] &= QUEENSIDE_CASTLING_BIT;
-    if (fromSquare == A8 || toSquare == A8) CASTLING_RIGHTS[BLACK] &= KINGSIDE_CASTLING_BIT;
-    if (fromSquare == H8 || toSquare == H8) CASTLING_RIGHTS[BLACK] &= QUEENSIDE_CASTLING_BIT;
+    CASTLING_RIGHTS &= UPDATE_CASTLING_RIGHTS[fromSquare];
+    CASTLING_RIGHTS &= UPDATE_CASTLING_RIGHTS[toSquare];
 
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 }
@@ -469,8 +473,7 @@ function takeback(): void {
 
     let history = HISTORY_STACK.pop()!;
     EN_PASSANT_SQUARE = getEnPassantSquare(history);
-    CASTLING_RIGHTS[WHITE] = getWhiteCastlingRights(history);
-    CASTLING_RIGHTS[BLACK] = getBlackCastlingRights(history);
+    CASTLING_RIGHTS = getCastlingRights(history);
     PLY_CLOCK = getPlyClock(history);
     MOVE_NUMBER -= ACTIVE_COLOR;
 
@@ -494,13 +497,12 @@ function takeback(): void {
         }
     }
 
-    if ((BOARD[fromSquare] & PIECE_TYPE_MASK) == KING) {
-        if (moveFlags & KINGSIDE_CASTLING_BIT) {
-            movePiece(toSquare + LEFT, toSquare + RIGHT);
-        } else if (moveFlags & QUEENSIDE_CASTLING_BIT) {
-            movePiece(toSquare + RIGHT, toSquare + LEFT + LEFT);
-        }
+    if (moveFlags & KINGSIDE_CASTLING_BIT) {
+        movePiece(toSquare + LEFT, toSquare + RIGHT);
+    } else if (moveFlags & QUEENSIDE_CASTLING_BIT) {
+        movePiece(toSquare + RIGHT, toSquare + LEFT + LEFT);
     }
+
 }
 
 function isSquareAttacked(square: number, color: number): boolean {
