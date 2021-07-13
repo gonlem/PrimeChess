@@ -47,8 +47,10 @@
 
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
-const NULL = 0;
+const WHITE = 0;
+const BLACK = 1;
 
+const NULL = 0;
 const KING = 1;
 const PAWN = 2;
 const KNIGHT = 3;
@@ -56,16 +58,12 @@ const BISHOP = 4;
 const ROOK = 5;
 const QUEEN = 6;
 
-const WHITE = 0;
-const BLACK = 1;
-
 const WHITE_KING = makePiece(WHITE, KING);
 const WHITE_PAWN = makePiece(WHITE, PAWN);
 const WHITE_KNIGHT = makePiece(WHITE, KNIGHT);
 const WHITE_BISHOP = makePiece(WHITE, BISHOP);
 const WHITE_ROOK = makePiece(WHITE, ROOK);
 const WHITE_QUEEN = makePiece(WHITE, QUEEN);
-
 const BLACK_KING = makePiece(BLACK, KING);
 const BLACK_PAWN = makePiece(BLACK, PAWN);
 const BLACK_KNIGHT = makePiece(BLACK, KNIGHT);
@@ -84,6 +82,7 @@ const PIECE_SLIDER_MASK = 0x04;
 const OUT_OF_BOARD_MASK = 0x88;
 const FILE_MASK = 0x0F;
 const RANK_MASK = 0xF0;
+const SQUARE_NULL = 0x7F;
 
 const RANK_1 = 0x70;
 const RANK_2 = 0x60;
@@ -92,20 +91,15 @@ const RANK_8 = 0x00;
 const PAWN_STARTING_RANK = [RANK_2, RANK_7];
 const PAWN_PROMOTING_RANK = [RANK_8, RANK_1];
 
-const SQUARE_NULL = 0x7F;
-const A1 = 0x70;
-const H1 = 0x77;
-const A8 = 0x00;
-const H8 = 0x07;
-
 const KINGSIDE_CASTLING_BIT = 0x01;
 const QUEENSIDE_CASTLING_BIT = 0x02;
 const CAPTURE_BIT = 0x04;
 const PAWN_MOVE_BIT = 0x08;
 const PAWN_SPECIAL_BIT = 0x10;
 const PROMOTION_MASK = 0xE0;
-
 const PAWN_MOVE_OR_CAPTURE_MASK = PAWN_MOVE_BIT + CAPTURE_BIT;
+const KINGSIDE_CASTLING = new Uint8Array([KINGSIDE_CASTLING_BIT, KINGSIDE_CASTLING_BIT << 2]);
+const QUEENSIDE_CASTLING = new Uint8Array([QUEENSIDE_CASTLING_BIT, QUEENSIDE_CASTLING_BIT << 2]);
 
 const MF_PAWN_PUSH_1_SQUARE = PAWN_MOVE_BIT;
 const MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_QUEEN = PAWN_MOVE_BIT + (QUEEN << 5);
@@ -123,9 +117,6 @@ const MF_PIECE_NORMAL_MOVE = 0;
 const MF_PIECE_CAPTURE_MOVE = CAPTURE_BIT;
 const MF_KINGSIDE_CASTLING = KINGSIDE_CASTLING_BIT;
 const MF_QUEENSIDE_CASTLING = QUEENSIDE_CASTLING_BIT;
-
-const KINGSIDE_CASTLING = new Uint8Array([KINGSIDE_CASTLING_BIT, KINGSIDE_CASTLING_BIT << 2]);
-const QUEENSIDE_CASTLING = new Uint8Array([QUEENSIDE_CASTLING_BIT, QUEENSIDE_CASTLING_BIT << 2]);
 
 const FEN_CHAR_TO_PIECE_CODE = new Map([
     ['P', WHITE_PAWN], ['N', WHITE_KNIGHT], ['B', WHITE_BISHOP], ['R', WHITE_ROOK], ['Q', WHITE_QUEEN], ['K', WHITE_KING],
@@ -156,7 +147,7 @@ const UPDATE_CASTLING_RIGHTS = new Uint8Array([
     15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
     15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
     15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
-    13,15,15,15,12,15,15,14,  0, 0, 0, 0, 0, 0, 0, 0,
+    13,15,15,15,12,15,15,14,  0, 0, 0, 0, 0, 0, 0, 0
 ]);
 
 ////////////////////////////////////////////////////////////////
