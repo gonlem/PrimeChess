@@ -19,16 +19,16 @@
 //  | DEC | HEX | BIN  | DESCRIPTION  |   | BINARY    | HEX  | DESCRIPTION     |
 //  +-----+-----+------+--------------+   +-----------+------+-----------------+
 //  |   0 |   0 | 0000 | NONE         |   | 0000 0001 | 0x01 | K-SIDE CASTLING |
-//  |   1 |   1 | 0001 | WHITE KING   |   | 0000 0010 | 0x02 | Q-SIDE CASTLING |
-//  |   2 |   2 | 0010 | WHITE PAWN   |   | 0000 0100 | 0x04 | CAPTURE         |
+//  |   1 |   1 | 0001 | WHITE PAWN   |   | 0000 0010 | 0x02 | Q-SIDE CASTLING |
+//  |   2 |   2 | 0010 | WHITE KING   |   | 0000 0100 | 0x04 | CAPTURE         |
 //  |   3 |   3 | 0011 | WHITE KNIGHT |   | 0000 1000 | 0x08 | PAWN MOVE       |
 //  |   4 |   4 | 0100 | WHITE BISHOP |   | 0001 0000 | 0x10 | PAWN SPECIAL    |
 //  |   5 |   5 | 0101 | WHITE ROOK   |   | 1110 0000 | 0xE0 | PROMOTED PIECE  |
 //  |   6 |   6 | 0110 | WHITE QUEEN  |   +-----------+------+-----------------+
 //  |   7 |   7 | 0111 |              |
 //  |   8 |   8 | 1000 |              |
-//  |   9 |   9 | 1001 | BLACK KING   |
-//  |  10 |   A | 1010 | BLACK PAWN   |
+//  |   9 |   9 | 1001 | BLACK PAWN   |
+//  |  10 |   A | 1010 | BLACK KING   |
 //  |  11 |   B | 1011 | BLACK KNIGHT |
 //  |  12 |   C | 1100 | BLACK BISHOP |
 //  |  13 |   D | 1101 | BLACK ROOK   |
@@ -272,7 +272,7 @@ function generateMoves(): number[] {
     let fromSquare;
     let toSquare;
     let capturedPiece;
-    let direction = UP * (1 - 2 * ACTIVE_COLOR);
+    let forward = UP * (1 - 2 * ACTIVE_COLOR);
 
     for (let pieceType = PAWN; pieceType <= QUEEN; pieceType++) {
         piece = makePiece(ACTIVE_COLOR, pieceType);
@@ -281,7 +281,7 @@ function generateMoves(): number[] {
             fromSquare = PIECE_LIST[10 * piece + p];
 
             if (pieceType == PAWN) {
-                toSquare = fromSquare + direction;
+                toSquare = fromSquare + forward;
                 if (BOARD[toSquare] == NULL) {
                     if ((toSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR]) {
                         moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_QUEEN, fromSquare, toSquare));
@@ -292,7 +292,7 @@ function generateMoves(): number[] {
                         moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE, fromSquare, toSquare));
 
                         if ((fromSquare & RANK_MASK) == PAWN_STARTING_RANK[ACTIVE_COLOR]) {
-                            toSquare += direction;
+                            toSquare += forward;
                             if (BOARD[toSquare] == NULL) {
                                 moveList.push(createMove(MF_PAWN_PUSH_2_SQUARES, fromSquare, toSquare));
                             }
@@ -301,7 +301,7 @@ function generateMoves(): number[] {
                 }
 
                 for (let lr = LEFT; lr <= RIGHT; lr += 2) {
-                    toSquare = fromSquare + direction + lr;
+                    toSquare = fromSquare + forward + lr;
                     if (toSquare & OUT_OF_BOARD_MASK) continue;
 
                     capturedPiece = BOARD[toSquare];
@@ -501,12 +501,21 @@ function isSquareAttacked(square: number, color: number): boolean {
     let coloredPawn = makePiece(color, PAWN);
     let directions, d, step, targetSquare, targetPiece;
     
-    directions = MOVE_DIRECTIONS[KNIGHT];
+    directions = MOVE_DIRECTIONS[BISHOP];
     for (d = 0; d < directions.length; d++) {
-        targetSquare = square + directions[d];
-        if (targetSquare & OUT_OF_BOARD_MASK) continue;
-        targetPiece = BOARD[targetSquare];
-        if (targetPiece == coloredKnight) return true;
+        targetSquare = square; step = 0;
+        do {
+            targetSquare += directions[d]; step++;
+            if (targetSquare & OUT_OF_BOARD_MASK) break;
+            targetPiece = BOARD[targetSquare];
+            if (targetPiece == NULL) continue;
+            if (targetPiece == coloredBishop || targetPiece == coloredQueen) return true;
+            if (step == 1) {
+                if (targetPiece == coloredKing) return true;
+                if (targetPiece == coloredPawn && ((1 - 2 * color) ^ directions[d]) > 0) return true;
+            }
+            break;
+        } while (true);
     }
 
     directions = MOVE_DIRECTIONS[ROOK];
@@ -523,21 +532,12 @@ function isSquareAttacked(square: number, color: number): boolean {
         } while (true);
     }
 
-    directions = MOVE_DIRECTIONS[BISHOP];
+    directions = MOVE_DIRECTIONS[KNIGHT];
     for (d = 0; d < directions.length; d++) {
-        targetSquare = square; step = 0;
-        do {
-            targetSquare += directions[d]; step++;
-            if (targetSquare & OUT_OF_BOARD_MASK) break;
-            targetPiece = BOARD[targetSquare];
-            if (targetPiece == NULL) continue;
-            if (targetPiece == coloredBishop || targetPiece == coloredQueen) return true;
-            if (step == 1) {
-                if (targetPiece == coloredKing) return true;
-                if (targetPiece == coloredPawn && ((1 - 2 * color) ^ directions[d]) > 0) return true;
-            }
-            break;
-        } while (true);
+        targetSquare = square + directions[d];
+        if (targetSquare & OUT_OF_BOARD_MASK) continue;
+        targetPiece = BOARD[targetSquare];
+        if (targetPiece == coloredKnight) return true;
     }
 
     return false;
