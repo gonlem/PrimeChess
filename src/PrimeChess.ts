@@ -494,37 +494,48 @@ function takeback(): void {
 
 function isSquareAttacked(square: number, color: number): boolean {
     let coloredQueen = makePiece(color, QUEEN);
+    let coloredRook = makePiece(color, ROOK);
+    let coloredBishop = makePiece(color, BISHOP);
+    let coloredKnight = makePiece(color, KNIGHT);
     let coloredKing = makePiece(color, KING);
-    let directions, d, step;
-    let piece, slide;
-    let targetSquare;
-    let targetPiece;
-    for (let pieceType = ROOK; pieceType >= KNIGHT; pieceType--) {
-        piece = makePiece(color, pieceType);
-        slide = pieceType & PIECE_SLIDER_MASK;
-        directions = MOVE_DIRECTIONS[pieceType];
-        for (d = 0; d < directions.length; d++) {
-            targetSquare = square; step = 0;
-            do {
-                targetSquare += directions[d]; step++;
-                if (targetSquare & OUT_OF_BOARD_MASK) break;
-                targetPiece = BOARD[targetSquare];
-                if (targetPiece == NULL) continue;
-                if (targetPiece == piece) return true;
-                if (targetPiece == coloredQueen && slide) return true;
-                if (step == 1 && targetPiece == coloredKing && slide) return true;
-                break;
-            } while (slide);
-        }
+    let coloredPawn = makePiece(color, PAWN);
+    let directions, d, step, targetSquare, targetPiece;
+    
+    directions = MOVE_DIRECTIONS[KNIGHT];
+    for (d = 0; d < directions.length; d++) {
+        targetSquare = square + directions[d];
+        if (targetSquare & OUT_OF_BOARD_MASK) continue;
+        targetPiece = BOARD[targetSquare];
+        if (targetPiece == coloredKnight) return true;
     }
 
-    let coloredPawn = makePiece(color, PAWN);
-    let backward = DOWN * (1 - 2 * color);
-    for (let lr = LEFT; lr <= RIGHT; lr += 2) {
-        targetSquare = square + backward + lr;
-        if (!(targetSquare & OUT_OF_BOARD_MASK) && BOARD[targetSquare] == coloredPawn) {
-            return true;
-        }
+    directions = MOVE_DIRECTIONS[ROOK];
+    for (d = 0; d < directions.length; d++) {
+        targetSquare = square; step = 0;
+        do {
+            targetSquare += directions[d]; step++;
+            if (targetSquare & OUT_OF_BOARD_MASK) break;
+            targetPiece = BOARD[targetSquare];
+            if (targetPiece == NULL) continue;
+            if (targetPiece == coloredRook || targetPiece == coloredQueen) return true;
+            if (step == 1 && targetPiece == coloredKing) return true;
+            break;
+        } while (true);
+    }
+
+    directions = MOVE_DIRECTIONS[BISHOP];
+    for (d = 0; d < directions.length; d++) {
+        targetSquare = square; step = 0;
+        do {
+            targetSquare += directions[d]; step++;
+            if (targetSquare & OUT_OF_BOARD_MASK) break;
+            targetPiece = BOARD[targetSquare];
+            if (targetPiece == NULL) continue;
+            if (targetPiece == coloredBishop || targetPiece == coloredQueen) return true;
+            if (step > 1) break;
+            if (targetPiece == coloredKing) return true;
+            if (targetPiece == coloredPawn && ((1 - 2 * color) * directions[d] > 0)) return true;
+        } while (true);
     }
 
     return false;
