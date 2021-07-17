@@ -532,9 +532,10 @@ function isSquareAttacked(square: number, color: number): boolean {
             targetPiece = BOARD[targetSquare];
             if (targetPiece == NULL) continue;
             if (targetPiece == coloredBishop || targetPiece == coloredQueen) return true;
-            if (step > 1) break;
-            if (targetPiece == coloredKing) return true;
-            if (targetPiece == coloredPawn && ((1 - 2 * color) * directions[d]) > 0) return true;
+            if (step == 1) {
+                if (targetPiece == coloredKing) return true;
+                if (targetPiece == coloredPawn && ((1 - 2 * color) ^ directions[d]) > 0) return true;
+            }
             break;
         } while (true);
     }
