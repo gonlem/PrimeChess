@@ -47,8 +47,10 @@
 
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
-const NULL = 0;
+const WHITE = 0;
+const BLACK = 1;
 
+const NULL = 0;
 const KING = 1;
 const PAWN = 2;
 const KNIGHT = 3;
@@ -56,16 +58,12 @@ const BISHOP = 4;
 const ROOK = 5;
 const QUEEN = 6;
 
-const WHITE = 0;
-const BLACK = 1;
-
 const WHITE_KING = makePiece(WHITE, KING);
 const WHITE_PAWN = makePiece(WHITE, PAWN);
 const WHITE_KNIGHT = makePiece(WHITE, KNIGHT);
 const WHITE_BISHOP = makePiece(WHITE, BISHOP);
 const WHITE_ROOK = makePiece(WHITE, ROOK);
 const WHITE_QUEEN = makePiece(WHITE, QUEEN);
-
 const BLACK_KING = makePiece(BLACK, KING);
 const BLACK_PAWN = makePiece(BLACK, PAWN);
 const BLACK_KNIGHT = makePiece(BLACK, KNIGHT);
@@ -979,6 +977,11 @@ function uci() {
                 break;
             case 'ucinewgame':
                 initBoard();
+                break;
+            case 'perft':
+                console.time('Time');
+                console.log('Nodes: ' + perft(Number.parseInt(commandParts[1], 10)));
+                console.timeEnd('Time');
                 break;
             case 'position':
                 if (commandParts[1] == 'fen') {
