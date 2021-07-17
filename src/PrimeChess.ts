@@ -662,34 +662,52 @@ function takeback(): void {
 
 function isSquareAttacked(square: number, color: number): boolean {
     let coloredQueen = makePiece(color, QUEEN);
-    for (let pieceType = ROOK; pieceType >= KING; pieceType--) {
-        let piece = makePiece(color, pieceType);
-        if (pieceType == PAWN) {
-            let direction = DOWN * (1 - 2 * color);
-            for (let lr = LEFT; lr <= RIGHT; lr += 2) {
-                let targetSquare = square + direction + lr;
-                if (!(targetSquare & OUT_OF_BOARD_MASK) && BOARD[targetSquare] == piece) {
-                    return true;
-                }
+    let coloredRook = makePiece(color, ROOK);
+    let coloredBishop = makePiece(color, BISHOP);
+    let coloredKnight = makePiece(color, KNIGHT);
+    let coloredKing = makePiece(color, KING);
+    let coloredPawn = makePiece(color, PAWN);
+    let directions, d, step, targetSquare, targetPiece;
+    
+    directions = MOVE_DIRECTIONS[BISHOP];
+    for (d = 0; d < directions.length; d++) {
+        targetSquare = square; step = 0;
+        do {
+            targetSquare += directions[d]; step++;
+            if (targetSquare & OUT_OF_BOARD_MASK) break;
+            targetPiece = BOARD[targetSquare];
+            if (targetPiece == NULL) continue;
+            if (targetPiece == coloredBishop || targetPiece == coloredQueen) return true;
+            if (step == 1) {
+                if (targetPiece == coloredKing) return true;
+                if (targetPiece == coloredPawn && ((1 - 2 * color) ^ directions[d]) > 0) return true;
             }
-        } else {
-            let slide = pieceType & PIECE_SLIDER_MASK;
-            let directions = MOVE_DIRECTIONS[pieceType];
-            for (let d = 0; d < directions.length; d++) {
-                let targetSquare = square;
-                do {
-                    targetSquare += directions[d];
-                    if (targetSquare & OUT_OF_BOARD_MASK) break;
-                    let targetPiece = BOARD[targetSquare];
-                    if (targetPiece != NULL) {
-                        if (targetPiece == piece) return true;
-                        if (targetPiece == coloredQueen && pieceType >= BISHOP) return true;
-                        break;
-                    }
-                } while (slide);
-            }
-        }
+            break;
+        } while (true);
     }
+
+    directions = MOVE_DIRECTIONS[ROOK];
+    for (d = 0; d < directions.length; d++) {
+        targetSquare = square; step = 0;
+        do {
+            targetSquare += directions[d]; step++;
+            if (targetSquare & OUT_OF_BOARD_MASK) break;
+            targetPiece = BOARD[targetSquare];
+            if (targetPiece == NULL) continue;
+            if (targetPiece == coloredRook || targetPiece == coloredQueen) return true;
+            if (step == 1 && targetPiece == coloredKing) return true;
+            break;
+        } while (true);
+    }
+
+    directions = MOVE_DIRECTIONS[KNIGHT];
+    for (d = 0; d < directions.length; d++) {
+        targetSquare = square + directions[d];
+        if (targetSquare & OUT_OF_BOARD_MASK) continue;
+        targetPiece = BOARD[targetSquare];
+        if (targetPiece == coloredKnight) return true;
+    }
+
     return false;
 }
 
