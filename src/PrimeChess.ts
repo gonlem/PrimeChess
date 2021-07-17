@@ -206,14 +206,10 @@ function removePiece(square: number) {
     let piece = BOARD[square];
     BOARD[square] = NULL;
 
-    let pieceCount = PIECE_COUNT[piece]--;
     let i = 10 * piece;
-    for (let j = 0; j < pieceCount - 1; j++) {
-        if (PIECE_LIST[i + j] == square) {
-            PIECE_LIST[i + j] = PIECE_LIST[i + pieceCount - 1];
-            break;
-        }
-    }
+    let lastIndex = --PIECE_COUNT[piece] + i;
+    while (PIECE_LIST[i] != square) i++;
+    PIECE_LIST[i] = PIECE_LIST[lastIndex];
 }
 
 function parseSquare(squareCoordinates: string): number {
