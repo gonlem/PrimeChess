@@ -51,8 +51,8 @@ const WHITE = 0;
 const BLACK = 1;
 
 const NULL = 0;
-const KING = 1;
-const PAWN = 2;
+const PAWN = 1;
+const KING = 2;
 const KNIGHT = 3;
 const BISHOP = 4;
 const ROOK = 5;
@@ -131,8 +131,8 @@ const PIECE_CODE_TO_PRINTABLE_CHAR = new Map([
 
 const MOVE_DIRECTIONS = [
     [],
-    [UP, RIGHT, DOWN, LEFT, UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT], // KING
     [], // PAWN
+    [UP, RIGHT, DOWN, LEFT, UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT], // KING
     [UP + UP + LEFT, UP + UP + RIGHT, DOWN + DOWN + LEFT, DOWN + DOWN + RIGHT, LEFT + LEFT + UP, LEFT + LEFT + DOWN, RIGHT + RIGHT + UP, RIGHT + RIGHT + DOWN], // KNIGHT
     [UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT], // BISHOP
     [UP, RIGHT, DOWN, LEFT], // ROOK
@@ -274,7 +274,7 @@ function generateMoves(): number[] {
     let capturedPiece;
     let direction = UP * (1 - 2 * ACTIVE_COLOR);
 
-    for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
+    for (let pieceType = PAWN; pieceType <= QUEEN; pieceType++) {
         piece = makePiece(ACTIVE_COLOR, pieceType);
         let pieceCount = PIECE_COUNT[piece];
         for (let p = 0; p < pieceCount; p++) {
