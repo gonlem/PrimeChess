@@ -218,7 +218,6 @@ let BOARD = new Uint8Array(128);
 let PIECE_LIST = new Uint8Array(16 * 10);
 let PIECE_COUNT = new Uint8Array(16);
 let ACTIVE_COLOR = WHITE;
-let MOVE_STACK: number[] = [];
 let EN_PASSANT_SQUARE = SQUARE_NULL;
 let CASTLING_RIGHTS = NULL;
 let FIFTY_MOVES_CLOCK = 0;
@@ -299,7 +298,6 @@ function clearBoard() {
     PIECE_COUNT.fill(NULL);
     PIECE_LIST.fill(NULL);
     ACTIVE_COLOR = WHITE;
-    MOVE_STACK = [];
     EN_PASSANT_SQUARE = SQUARE_NULL;
     CASTLING_RIGHTS = NULL;
     FIFTY_MOVES_CLOCK = 0;
@@ -503,8 +501,6 @@ function restoreGlobalState(state: number) {
 
 function makeMove(move: number): void {
     GAME_PLY++;
-    MOVE_STACK.push(move);
-
     EN_PASSANT_SQUARE = SQUARE_NULL;
     FIFTY_MOVES_CLOCK++;
 
@@ -548,12 +544,11 @@ function makeMove(move: number): void {
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 }
 
-function takeback(): void {
+function takeback(move: number): void {
     GAME_PLY--;
 
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 
-    let move = MOVE_STACK.pop()!;
     let moveFlags = getMoveFlags(move);
     let fromSquare = getFromSquare(move);
     let toSquare = getToSquare(move);
@@ -712,12 +707,12 @@ function quiesce(alpha: number, beta: number): number {
     for (let m = 0; m < moveList.length; m++) {
         makeMove(moveList[m]);
         if (isSquareAttacked(getKingSquare(1 - ACTIVE_COLOR), ACTIVE_COLOR)) {
-            takeback();
+            takeback(moveList[m]);
             restoreGlobalState(state);
             continue;
         }
         score = -quiesce(-beta, -alpha);
-        takeback();
+        takeback(moveList[m]);
         restoreGlobalState(state);
 
         if (score >= beta) return beta;
@@ -739,14 +734,14 @@ function alphaBeta(alpha: number, beta: number, depth: number): number {
 
         makeMove(moveList[m]);
         if (isSquareAttacked(getKingSquare(1 - ACTIVE_COLOR), ACTIVE_COLOR)) {
-            takeback();
+            takeback(moveList[m]);
             restoreGlobalState(state);
             continue;
         }
         legalMoveCount++;
         let score = -alphaBeta(-beta, -alpha, depth - 1);
         if (FIFTY_MOVES_CLOCK >= 100) score = DRAW_VALUE;
-        takeback();
+        takeback(moveList[m]);
         restoreGlobalState(state);
 
         if (score >= beta) return beta;
@@ -819,7 +814,7 @@ function perft(depth: number): number {
         if (!isSquareAttacked(getKingSquare(1 - ACTIVE_COLOR), ACTIVE_COLOR)) {
             nodes += perft(depth - 1);
         }
-        takeback();
+        takeback(moveList[m]);
         restoreGlobalState(state);
     }
     return nodes;
