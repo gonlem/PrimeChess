@@ -211,12 +211,10 @@ let PIECE_COUNT = new Uint8Array(16);
 let ACTIVE_COLOR = WHITE;
 let MOVE_STACK: number[] = [];
 let HISTORY_STACK: number[] = [];
-let REPETITION_TABLE: number[] = [];
 let EN_PASSANT_SQUARE = SQUARE_NULL;
 let CASTLING_RIGHTS = [NULL, NULL];
 let FIFTY_MOVES_CLOCK = 0;
 let GAME_PLY = 0;
-let SEARCH_PLY = 0;
 
 let NODE_COUNT = 0;
 let SEARCH_DEPTH = 0;
@@ -230,30 +228,9 @@ let STOP_SEARCH = false;
 let FORCE_STOP = false;
 let SEARCH_STARTING_TIME = Date.now();
 
-let POSITION_HASH_KEY = 0;
-let PIECE_SQUARE_KEYS = new Uint32Array(16 * 128);
-let WHITE_CASTLING_RIGHTS_KEYS = new Uint32Array(4);
-let BLACK_CASTLING_RIGHTS_KEYS = new Uint32Array(4);
-let ACTIVE_COLOR_KEY = 0;
-
 ////////////////////////////////////////////////////////////////
 //  FUNCTIONS                                                 //
 ////////////////////////////////////////////////////////////////
-
-let random = 2463534242;
-function nextRandom() {
-    random ^= (random << 13);
-    random ^= (random >> 17);
-    random ^= (random << 5);
-    return random;
-}
-
-function initRandomKeys() {
-    for (let i = 0; i < PIECE_SQUARE_KEYS.length; i++) PIECE_SQUARE_KEYS[i] = nextRandom();
-    for (let i = 0; i < WHITE_CASTLING_RIGHTS_KEYS.length; i++) WHITE_CASTLING_RIGHTS_KEYS[i] = nextRandom();
-    for (let i = 0; i < BLACK_CASTLING_RIGHTS_KEYS.length; i++) BLACK_CASTLING_RIGHTS_KEYS[i] = nextRandom();
-    ACTIVE_COLOR_KEY = nextRandom();
-}
 
 function makePiece(color: number, pieceType: number) {
     return pieceType | (color << 3);
@@ -274,10 +251,8 @@ function getKingSquare(color: number) {
 function movePiece(fromSquare: number, toSquare: number) {
     let piece = BOARD[fromSquare];
     BOARD[fromSquare] = NULL;
-    POSITION_HASH_KEY ^= PIECE_SQUARE_KEYS[piece * 128 + fromSquare];
     BOARD[toSquare] = piece;
-    POSITION_HASH_KEY ^= PIECE_SQUARE_KEYS[piece * 128 + toSquare];
-
+    
     let i = 10 * piece;
     while (PIECE_LIST[i] != fromSquare) i++;
     PIECE_LIST[i] = toSquare;
@@ -285,8 +260,7 @@ function movePiece(fromSquare: number, toSquare: number) {
 
 function addPiece(piece: number, square: number) {
     BOARD[square] = piece;
-    POSITION_HASH_KEY ^= PIECE_SQUARE_KEYS[piece * 128 + square];
-
+    
     let pieceCount = PIECE_COUNT[piece]++;
     PIECE_LIST[piece * 10 + pieceCount] = square;
 }
@@ -294,8 +268,7 @@ function addPiece(piece: number, square: number) {
 function removePiece(square: number) {
     let piece = BOARD[square];
     BOARD[square] = NULL;
-    POSITION_HASH_KEY ^= PIECE_SQUARE_KEYS[piece * 128 + square];
-
+    
     let i = 10 * piece;
     let lastIndex = --PIECE_COUNT[piece] + i;
     while (PIECE_LIST[i] != square) i++;
@@ -313,13 +286,6 @@ function toSquareCoordinates(square: number) {
     return file + rank;
 }
 
-function isRepetition() {
-    for (let i = 0; i < GAME_PLY; i++) {
-        if (REPETITION_TABLE[i] == POSITION_HASH_KEY) return true;
-    }
-    return false;
-}
-
 function clearBoard() {
     BOARD.fill(NULL);
     PIECE_COUNT.fill(NULL);
@@ -327,7 +293,6 @@ function clearBoard() {
     ACTIVE_COLOR = WHITE;
     MOVE_STACK = [];
     HISTORY_STACK = [];
-    REPETITION_TABLE = [];
     EN_PASSANT_SQUARE = SQUARE_NULL;
     CASTLING_RIGHTS = [NULL, NULL];
     FIFTY_MOVES_CLOCK = 0;
@@ -359,12 +324,9 @@ function initBoard(fen: string = STARTING_FEN) {
     if (fenCastlingRights.includes('Q')) CASTLING_RIGHTS[WHITE] |= QUEENSIDE_CASTLING_BIT;
     if (fenCastlingRights.includes('k')) CASTLING_RIGHTS[BLACK] |= KINGSIDE_CASTLING_BIT;
     if (fenCastlingRights.includes('q')) CASTLING_RIGHTS[BLACK] |= QUEENSIDE_CASTLING_BIT;
-    POSITION_HASH_KEY ^= WHITE_CASTLING_RIGHTS_KEYS[CASTLING_RIGHTS[WHITE]];
-    POSITION_HASH_KEY ^= BLACK_CASTLING_RIGHTS_KEYS[CASTLING_RIGHTS[BLACK]];
 
     let fenEnPassantSquare = fenParts[3];
     if (fenEnPassantSquare != '-') EN_PASSANT_SQUARE = parseSquare(fenEnPassantSquare);
-    POSITION_HASH_KEY ^= PIECE_SQUARE_KEYS[EN_PASSANT_SQUARE];
 
     let fenHalfMoveClock = fenParts[4];
     FIFTY_MOVES_CLOCK = parseInt(fenHalfMoveClock, 10);
@@ -543,14 +505,8 @@ function getFiftyMovesClock(history: number) {
 }
 
 function makeMove(move: number): void {
-    REPETITION_TABLE[GAME_PLY] = POSITION_HASH_KEY;
-
     GAME_PLY++;
     MOVE_STACK.push(move);
-    
-    POSITION_HASH_KEY ^= PIECE_SQUARE_KEYS[EN_PASSANT_SQUARE];
-    POSITION_HASH_KEY ^= WHITE_CASTLING_RIGHTS_KEYS[CASTLING_RIGHTS[WHITE]];
-    POSITION_HASH_KEY ^= BLACK_CASTLING_RIGHTS_KEYS[CASTLING_RIGHTS[BLACK]];
 
     HISTORY_STACK.push(createHistory(EN_PASSANT_SQUARE, CASTLING_RIGHTS, FIFTY_MOVES_CLOCK));
     EN_PASSANT_SQUARE = SQUARE_NULL;
@@ -600,32 +556,18 @@ function makeMove(move: number): void {
     if (fromSquare == H8 || toSquare == H8) CASTLING_RIGHTS[BLACK] &= QUEENSIDE_CASTLING_BIT;
 
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
-    POSITION_HASH_KEY ^= ACTIVE_COLOR_KEY;
-
-    POSITION_HASH_KEY ^= PIECE_SQUARE_KEYS[EN_PASSANT_SQUARE];
-    POSITION_HASH_KEY ^= WHITE_CASTLING_RIGHTS_KEYS[CASTLING_RIGHTS[WHITE]];
-    POSITION_HASH_KEY ^= BLACK_CASTLING_RIGHTS_KEYS[CASTLING_RIGHTS[BLACK]];
 }
 
 function takeback(): void {
     GAME_PLY--;
 
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
-    POSITION_HASH_KEY ^= ACTIVE_COLOR_KEY;
-
-    POSITION_HASH_KEY ^= PIECE_SQUARE_KEYS[EN_PASSANT_SQUARE];
-    POSITION_HASH_KEY ^= WHITE_CASTLING_RIGHTS_KEYS[CASTLING_RIGHTS[WHITE]];
-    POSITION_HASH_KEY ^= BLACK_CASTLING_RIGHTS_KEYS[CASTLING_RIGHTS[BLACK]];
 
     let history = HISTORY_STACK.pop()!;
     EN_PASSANT_SQUARE = getEnPassantSquare(history);
     CASTLING_RIGHTS[WHITE] = getWhiteCastlingRights(history);
     CASTLING_RIGHTS[BLACK] = getBlackCastlingRights(history);
     FIFTY_MOVES_CLOCK = getFiftyMovesClock(history);
-
-    POSITION_HASH_KEY ^= PIECE_SQUARE_KEYS[EN_PASSANT_SQUARE];
-    POSITION_HASH_KEY ^= WHITE_CASTLING_RIGHTS_KEYS[CASTLING_RIGHTS[WHITE]];
-    POSITION_HASH_KEY ^= BLACK_CASTLING_RIGHTS_KEYS[CASTLING_RIGHTS[BLACK]];
 
     let move = MOVE_STACK.pop()!;
     let moveFlags = getMoveFlags(move);
@@ -816,7 +758,7 @@ function alphaBeta(alpha: number, beta: number, depth: number): number {
         }
         legalMoveCount++;
         let score = -alphaBeta(-beta, -alpha, depth - 1);
-        if (isRepetition() || FIFTY_MOVES_CLOCK >= 100) score = DRAW_VALUE;
+        if (FIFTY_MOVES_CLOCK >= 100) score = DRAW_VALUE;
         takeback();
 
         if (score >= beta) return beta;
@@ -1027,7 +969,6 @@ function uci() {
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-initRandomKeys();
 uci();
 
 export {
