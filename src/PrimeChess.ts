@@ -164,6 +164,17 @@ let PLY_CLOCK = 0;
 let MOVE_NUMBER = 1;
 
 ////////////////////////////////////////////////////////////////
+//  CUSTOM TYPES                                              //
+////////////////////////////////////////////////////////////////
+
+type Move = {
+    moveFlags: number;
+    fromSquare: number;
+    toSquare: number;
+    capturedPiece?: number;
+};
+
+////////////////////////////////////////////////////////////////
 //  FUNCTIONS                                                 //
 ////////////////////////////////////////////////////////////////
 
@@ -256,6 +267,61 @@ function initBoard(fen: string = STARTING_FEN) {
 
     let fenFullMoveCount = fenParts[5];
     MOVE_NUMBER = parseInt(fenFullMoveCount, 10);
+}
+
+function isSquareAttacked(square: number, color: number): boolean {
+    let coloredQueen = makePiece(color, QUEEN);
+    let coloredRook = makePiece(color, ROOK);
+    let coloredBishop = makePiece(color, BISHOP);
+    let coloredKnight = makePiece(color, KNIGHT);
+    let coloredKing = makePiece(color, KING);
+    let coloredPawn = makePiece(color, PAWN);
+    let directions, d, step, targetSquare, targetPiece;
+    
+    directions = MOVE_DIRECTIONS[BISHOP];
+    for (d = 0; d < directions.length; d++) {
+        targetSquare = square; step = 0;
+        do {
+            targetSquare += directions[d]; step++;
+            if (targetSquare & OUT_OF_BOARD_MASK) break;
+            targetPiece = BOARD[targetSquare];
+            if (targetPiece == NULL) continue;
+            if (targetPiece == coloredBishop || targetPiece == coloredQueen) return true;
+            if (step == 1) {
+                if (targetPiece == coloredKing) return true;
+                if (targetPiece == coloredPawn && ((1 - 2 * color) ^ directions[d]) > 0) return true;
+            }
+            break;
+        } while (true);
+    }
+
+    directions = MOVE_DIRECTIONS[ROOK];
+    for (d = 0; d < directions.length; d++) {
+        targetSquare = square; step = 0;
+        do {
+            targetSquare += directions[d]; step++;
+            if (targetSquare & OUT_OF_BOARD_MASK) break;
+            targetPiece = BOARD[targetSquare];
+            if (targetPiece == NULL) continue;
+            if (targetPiece == coloredRook || targetPiece == coloredQueen) return true;
+            if (step == 1 && targetPiece == coloredKing) return true;
+            break;
+        } while (true);
+    }
+
+    directions = MOVE_DIRECTIONS[KNIGHT];
+    for (d = 0; d < directions.length; d++) {
+        targetSquare = square + directions[d];
+        if (targetSquare & OUT_OF_BOARD_MASK) continue;
+        targetPiece = BOARD[targetSquare];
+        if (targetPiece == coloredKnight) return true;
+    }
+
+    return false;
+}
+
+function createMove(moveFlags: number, fromSquare: number, toSquare: number, capturedPiece: number = NULL): number {
+    return moveFlags | (fromSquare << 8) | (toSquare << 16) | (capturedPiece << 24);
 }
 
 function generateMoves(): number[] {
@@ -363,22 +429,12 @@ function generateMoves(): number[] {
     return moveList;
 }
 
-function createMove(moveFlags: number, fromSquare: number, toSquare: number, capturedPiece: number = NULL): number {
-    return moveFlags | (fromSquare << 8) | (toSquare << 16) | (capturedPiece << 24);
-}
-
-function createTakebackInfo(): number {
-    return EN_PASSANT_SQUARE | (CASTLING_RIGHTS << 8) | (PLY_CLOCK << 12);
-}
-
-function makeMove(move: number): void {
+function makeMove(move: Move): void {
     EN_PASSANT_SQUARE = SQUARE_NULL;
     PLY_CLOCK++;
-    MOVE_NUMBER += ACTIVE_COLOR;
-
-    let moveFlags = move & 0xFF;
-    let fromSquare = (move >> 8) & 0xFF;
-    let toSquare = (move >> 16) & 0xFF;
+    let moveFlags = move.moveFlags;
+    let fromSquare = move.fromSquare;
+    let toSquare = move.toSquare;
 
     if (moveFlags & PAWN_MOVE_OR_CAPTURE_MASK) {
         PLY_CLOCK = 0;
@@ -416,18 +472,12 @@ function makeMove(move: number): void {
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 }
 
-function takeback(move: number, takebackInfo: number): void {
+function takeback(move: Move): void {
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 
-    EN_PASSANT_SQUARE = takebackInfo & 0xFF;
-    CASTLING_RIGHTS = (takebackInfo >> 8) & 0x0F;
-    PLY_CLOCK = (takebackInfo >> 12) & 0xFF;
-    MOVE_NUMBER -= ACTIVE_COLOR;
-
-    let moveFlags = move & 0xFF;
-    let fromSquare = (move >> 8) & 0xFF;
-    let toSquare = (move >> 16) & 0xFF;
-    let capturedPiece = (move >> 24) & 0x0F;
+    let moveFlags = move.moveFlags;
+    let fromSquare = move.fromSquare;
+    let toSquare = move.toSquare;
 
     if (moveFlags & PROMOTION_MASK) {
         removePiece(toSquare);
@@ -440,7 +490,7 @@ function takeback(move: number, takebackInfo: number): void {
         if (moveFlags & PAWN_SPECIAL_BIT) {
             addPiece(makePiece(1 - ACTIVE_COLOR, PAWN), (fromSquare & RANK_MASK) + (toSquare & FILE_MASK));
         } else {
-            addPiece(capturedPiece, toSquare);
+            addPiece(move.capturedPiece!, toSquare);
         }
     }
 
@@ -451,103 +501,38 @@ function takeback(move: number, takebackInfo: number): void {
     }
 }
 
-function isSquareAttacked(square: number, color: number): boolean {
-    let coloredQueen = makePiece(color, QUEEN);
-    let coloredRook = makePiece(color, ROOK);
-    let coloredBishop = makePiece(color, BISHOP);
-    let coloredKnight = makePiece(color, KNIGHT);
-    let coloredKing = makePiece(color, KING);
-    let coloredPawn = makePiece(color, PAWN);
-    let directions, d, step, targetSquare, targetPiece;
-    
-    directions = MOVE_DIRECTIONS[BISHOP];
-    for (d = 0; d < directions.length; d++) {
-        targetSquare = square; step = 0;
-        do {
-            targetSquare += directions[d]; step++;
-            if (targetSquare & OUT_OF_BOARD_MASK) break;
-            targetPiece = BOARD[targetSquare];
-            if (targetPiece == NULL) continue;
-            if (targetPiece == coloredBishop || targetPiece == coloredQueen) return true;
-            if (step == 1) {
-                if (targetPiece == coloredKing) return true;
-                if (targetPiece == coloredPawn && ((1 - 2 * color) ^ directions[d]) > 0) return true;
-            }
-            break;
-        } while (true);
-    }
-
-    directions = MOVE_DIRECTIONS[ROOK];
-    for (d = 0; d < directions.length; d++) {
-        targetSquare = square; step = 0;
-        do {
-            targetSquare += directions[d]; step++;
-            if (targetSquare & OUT_OF_BOARD_MASK) break;
-            targetPiece = BOARD[targetSquare];
-            if (targetPiece == NULL) continue;
-            if (targetPiece == coloredRook || targetPiece == coloredQueen) return true;
-            if (step == 1 && targetPiece == coloredKing) return true;
-            break;
-        } while (true);
-    }
-
-    directions = MOVE_DIRECTIONS[KNIGHT];
-    for (d = 0; d < directions.length; d++) {
-        targetSquare = square + directions[d];
-        if (targetSquare & OUT_OF_BOARD_MASK) continue;
-        targetPiece = BOARD[targetSquare];
-        if (targetPiece == coloredKnight) return true;
-    }
-
-    return false;
+function decodeMove(move: number): Move {
+    return {
+        moveFlags: move & 0xFF,
+        fromSquare: (move >> 8) & 0xFF,
+        toSquare: (move >> 16) & 0xFF,
+        capturedPiece: (move >> 24) & 0x0F
+    };
 }
 
-/*
-function perft(depth: number): number {
+function createGlobalState(): number {
+    return EN_PASSANT_SQUARE | (CASTLING_RIGHTS << 8) | (PLY_CLOCK << 12);
+}
+
+function restoreGlobalState(state: number) {
+    EN_PASSANT_SQUARE = state & 0xFF;
+    CASTLING_RIGHTS = (state >> 8) & 0x0F;
+    PLY_CLOCK = (state >> 12) & 0xFF;
+}
+
+function perft(depth: number) {
     if (0 == depth) return 1;
-    let nodes = 0, m, move;
-    let moveList = generateMoves();
-    let takebackInfo = createTakebackInfo();
+    var nodes = 0, m, move;
+    var state = createGlobalState();
+    var moveList = generateMoves();
     for (m = 0; m < moveList.length; m++) {
-        move = moveList[m];
+        move = decodeMove(moveList[m]);
         makeMove(move);
         if (!isSquareAttacked(PIECE_LIST[makePiece(1 - ACTIVE_COLOR, KING) * 10], ACTIVE_COLOR)) {
             nodes += perft(depth - 1);
         }
-        takeback(move, takebackInfo);
-    }
-    return nodes;
-}
-*/
-
-function perft(depth: number) {
-    if (0 == depth) return 1;
-    var nodes = 0, m, move, moveFlags, fromSquare, toSquare;
-    var moveList = generateMoves();
-    var history = EN_PASSANT_SQUARE | CASTLING_RIGHTS << 8 | PLY_CLOCK << 12;
-        
-    for (m = 0; m < moveList.length; m++) {
-        move = moveList[m];
-        EN_PASSANT_SQUARE = SQUARE_NULL;
-        PLY_CLOCK++;
-        moveFlags = move & 255;
-        fromSquare = move >> 8 & 255;
-        toSquare = move >> 16 & 255;
-        moveFlags & PAWN_MOVE_OR_CAPTURE_MASK && (PLY_CLOCK = 0);
-        moveFlags & CAPTURE_BIT ? moveFlags & PAWN_SPECIAL_BIT ? removePiece((fromSquare & RANK_MASK) + (toSquare & FILE_MASK)) : removePiece(toSquare) : moveFlags & PAWN_SPECIAL_BIT && (EN_PASSANT_SQUARE = (fromSquare + toSquare) / 2);
-        moveFlags & PROMOTION_MASK ? (removePiece(fromSquare), addPiece((moveFlags & PROMOTION_MASK) >> 5 | ACTIVE_COLOR << 3, toSquare)) : movePiece(fromSquare, toSquare);
-        moveFlags & KINGSIDE_CASTLING_BIT ? movePiece(toSquare + 1, toSquare - 1) : moveFlags & QUEENSIDE_CASTLING_BIT && movePiece(toSquare - 2, toSquare + 1);
-        CASTLING_RIGHTS &= UPDATE_CASTLING_RIGHTS[fromSquare];
-        CASTLING_RIGHTS &= UPDATE_CASTLING_RIGHTS[toSquare];
-        ACTIVE_COLOR = 1 - ACTIVE_COLOR;
-        isSquareAttacked(PIECE_LIST[makePiece(1 - ACTIVE_COLOR, KING) * 10], ACTIVE_COLOR) || (nodes += perft(depth - 1));
-        ACTIVE_COLOR = 1 - ACTIVE_COLOR;
-        EN_PASSANT_SQUARE = history & 255;
-        CASTLING_RIGHTS = history >> 8 & 15;
-        PLY_CLOCK = history >> 12 & 255;
-        moveFlags & PROMOTION_MASK ? (removePiece(toSquare), addPiece(1 | ACTIVE_COLOR << 3, fromSquare)) : movePiece(toSquare, fromSquare);
-        moveFlags & CAPTURE_BIT && (moveFlags & PAWN_SPECIAL_BIT ? addPiece(1 | 1 - ACTIVE_COLOR << 3, (fromSquare & RANK_MASK) + (toSquare & FILE_MASK)) : addPiece(move >> 24 & 15, toSquare));
-        moveFlags & KINGSIDE_CASTLING_BIT ? movePiece(toSquare - 1, toSquare + 1) : moveFlags & QUEENSIDE_CASTLING_BIT && movePiece(toSquare + 1, toSquare - 2);
+        takeback(move);
+        restoreGlobalState(state);
     }
     return nodes;
 }
