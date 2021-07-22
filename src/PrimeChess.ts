@@ -140,14 +140,14 @@ const MOVE_DIRECTIONS = [
 ];
 
 const UPDATE_CASTLING_RIGHTS = new Uint8Array([
-     7,15,15,15, 3,15,15,11,  0, 0, 0, 0, 0, 0, 0, 0,
-    15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
-    15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
-    15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
-    15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
-    15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
-    15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
-    13,15,15,15,12,15,15,14,  0, 0, 0, 0, 0, 0, 0, 0
+    7,15,15,15, 3,15,15,11,  0, 0, 0, 0, 0, 0, 0, 0,
+   15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
+   15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
+   15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
+   15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
+   15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
+   15,15,15,15,15,15,15,15,  0, 0, 0, 0, 0, 0, 0, 0,
+   13,15,15,15,12,15,15,14,  0, 0, 0, 0, 0, 0, 0, 0
 ]);
 
 ////////////////////////////////////////////////////////////////
@@ -211,20 +211,11 @@ function parseSquare(squareCoordinates: string): number {
         - 16 * (squareCoordinates.charCodeAt(1) - '8'.charCodeAt(0));
 }
 
-function clearBoard() {
+function initBoard(fen: string = STARTING_FEN) {
+    let fenParts = fen.split(' ');
     BOARD.fill(NULL);
     PIECE_COUNT.fill(NULL);
     PIECE_LIST.fill(NULL);
-    ACTIVE_COLOR = WHITE;
-    EN_PASSANT_SQUARE = SQUARE_NULL;
-    CASTLING_RIGHTS = NULL;
-    PLY_CLOCK = 0;
-    MOVE_NUMBER = 1;
-}
-
-function initBoard(fen: string = STARTING_FEN) {
-    let fenParts = fen.split(' ');
-    clearBoard();
 
     let fenBoard = fenParts[0];
     let index = 0;
@@ -239,22 +230,23 @@ function initBoard(fen: string = STARTING_FEN) {
         }
     }
 
-    let fenActiveColor = fenParts[1];
-    if (fenActiveColor == 'b') ACTIVE_COLOR = BLACK;
+    let fenActiveColor = fenParts[1] ?? 'w';
+    ACTIVE_COLOR = (fenActiveColor == 'b') ? BLACK : WHITE;
 
-    let fenCastlingRights = fenParts[2];
+    let fenCastlingRights = fenParts[2] ?? '';
+    CASTLING_RIGHTS = NULL;
     if (fenCastlingRights.includes('K')) CASTLING_RIGHTS |= KINGSIDE_CASTLING[WHITE];
     if (fenCastlingRights.includes('Q')) CASTLING_RIGHTS |= QUEENSIDE_CASTLING[WHITE];
     if (fenCastlingRights.includes('k')) CASTLING_RIGHTS |= KINGSIDE_CASTLING[BLACK];
     if (fenCastlingRights.includes('q')) CASTLING_RIGHTS |= QUEENSIDE_CASTLING[BLACK];
 
-    let fenEnPassantSquare = fenParts[3];
-    if (fenEnPassantSquare != '-') EN_PASSANT_SQUARE = parseSquare(fenEnPassantSquare);
+    let fenEnPassantSquare = fenParts[3] ?? '-';
+    EN_PASSANT_SQUARE = (fenEnPassantSquare != '-') ? parseSquare(fenEnPassantSquare) : SQUARE_NULL;
 
-    let fenHalfMoveClock = fenParts[4];
+    let fenHalfMoveClock = fenParts[4] ?? '0';
     PLY_CLOCK = parseInt(fenHalfMoveClock, 10);
 
-    let fenFullMoveCount = fenParts[5];
+    let fenFullMoveCount = fenParts[5] ?? '1';
     MOVE_NUMBER = parseInt(fenFullMoveCount, 10);
 }
 
@@ -266,7 +258,7 @@ function isSquareAttacked(square: number, color: number): boolean {
     let coloredKing = makePiece(color, KING);
     let coloredPawn = makePiece(color, PAWN);
     let directions, d, step, targetSquare, targetPiece;
-    
+
     directions = MOVE_DIRECTIONS[BISHOP];
     for (d = 0; d < directions.length; d++) {
         targetSquare = square; step = 0;
@@ -501,10 +493,10 @@ function restoreGlobalState(state: number) {
 }
 
 function perft(depth: number) {
-    if (0 == depth) return 1;
-    var nodes = 0, m, move;
-    var state = createGlobalState();
-    var moveList = generateMoves();
+    if (depth == 0) return 1;
+    let nodes = 0, m, move;
+    let state = createGlobalState();
+    let moveList = generateMoves();
     for (m = 0; m < moveList.length; m++) {
         move = moveList[m];
         makeMove(move);
