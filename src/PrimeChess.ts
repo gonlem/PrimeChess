@@ -164,17 +164,6 @@ let PLY_CLOCK = 0;
 let MOVE_NUMBER = 1;
 
 ////////////////////////////////////////////////////////////////
-//  CUSTOM TYPES                                              //
-////////////////////////////////////////////////////////////////
-
-type Move = {
-    moveFlags: number;
-    fromSquare: number;
-    toSquare: number;
-    capturedPiece?: number;
-};
-
-////////////////////////////////////////////////////////////////
 //  FUNCTIONS                                                 //
 ////////////////////////////////////////////////////////////////
 
@@ -429,12 +418,12 @@ function generateMoves(): number[] {
     return moveList;
 }
 
-function makeMove(move: Move): void {
+function makeMove(move: number): void {
     EN_PASSANT_SQUARE = SQUARE_NULL;
     PLY_CLOCK++;
-    let moveFlags = move.moveFlags;
-    let fromSquare = move.fromSquare;
-    let toSquare = move.toSquare;
+    let moveFlags = move & 0xFF;
+    let fromSquare = (move >> 8) & 0xFF;
+    let toSquare = (move >> 16) & 0xFF;
 
     if (moveFlags & PAWN_MOVE_OR_CAPTURE_MASK) {
         PLY_CLOCK = 0;
@@ -472,12 +461,12 @@ function makeMove(move: Move): void {
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 }
 
-function takeback(move: Move): void {
+function takeback(move: number): void {
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 
-    let moveFlags = move.moveFlags;
-    let fromSquare = move.fromSquare;
-    let toSquare = move.toSquare;
+    let moveFlags = move & 0xFF;
+    let fromSquare = (move >> 8) & 0xFF;
+    let toSquare = (move >> 16) & 0xFF;
 
     if (moveFlags & PROMOTION_MASK) {
         removePiece(toSquare);
@@ -490,7 +479,7 @@ function takeback(move: Move): void {
         if (moveFlags & PAWN_SPECIAL_BIT) {
             addPiece(makePiece(1 - ACTIVE_COLOR, PAWN), (fromSquare & RANK_MASK) + (toSquare & FILE_MASK));
         } else {
-            addPiece(move.capturedPiece!, toSquare);
+            addPiece((move >> 24) & 0x0F, toSquare);
         }
     }
 
@@ -499,15 +488,6 @@ function takeback(move: Move): void {
     } else if (moveFlags & QUEENSIDE_CASTLING_BIT) {
         movePiece(toSquare + RIGHT, toSquare + LEFT + LEFT);
     }
-}
-
-function decodeMove(move: number): Move {
-    return {
-        moveFlags: move & 0xFF,
-        fromSquare: (move >> 8) & 0xFF,
-        toSquare: (move >> 16) & 0xFF,
-        capturedPiece: (move >> 24) & 0x0F
-    };
 }
 
 function createGlobalState(): number {
@@ -526,7 +506,7 @@ function perft(depth: number) {
     var state = createGlobalState();
     var moveList = generateMoves();
     for (m = 0; m < moveList.length; m++) {
-        move = decodeMove(moveList[m]);
+        move = moveList[m];
         makeMove(move);
         if (!isSquareAttacked(PIECE_LIST[makePiece(1 - ACTIVE_COLOR, KING) * 10], ACTIVE_COLOR)) {
             nodes += perft(depth - 1);
