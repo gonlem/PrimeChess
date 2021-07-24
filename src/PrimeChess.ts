@@ -155,8 +155,8 @@ const UPDATE_CASTLING_RIGHTS = new Uint8Array([
 ////////////////////////////////////////////////////////////////
 
 let BOARD = new Uint8Array(128);
-let OCCUPIED_SQUARES = new Uint8Array(32);
-let OCCUPIED_SQUARES_LENGTH = [1, 17];
+let PIECE_COUNT = new Uint8Array(16);
+let PIECE_LIST = new Uint8Array(160);
 let ACTIVE_COLOR = WHITE;
 let EN_PASSANT_SQUARE = SQUARE_NULL;
 let CASTLING_RIGHTS = NULL;
@@ -172,7 +172,7 @@ function makePiece(color: number, pieceType: number) {
 }
 
 function getPieceColor(piece: number) {
-    return piece >> 3;
+    return (piece & PIECE_COLOR_MASK) >> 3;
 }
 
 function getPieceType(piece: number) {
@@ -185,16 +185,16 @@ function movePiece(fromSquare: number, toSquare: number) {
     BOARD[toSquare] = piece;
 
     let index = BOARD[fromSquare + 8];
-    OCCUPIED_SQUARES[index] = toSquare;
+    PIECE_LIST[index] = toSquare;
     BOARD[toSquare + 8] = index;
 }
 
 function addPiece(piece: number, square: number) {
     BOARD[square] = piece;
 
-    let length = OCCUPIED_SQUARES_LENGTH[getPieceColor(piece)]++;
-    OCCUPIED_SQUARES[length] = square;
-    BOARD[square + 8] = length;
+    let index = 10 * piece + PIECE_COUNT[piece]++;
+    PIECE_LIST[index] = square;
+    BOARD[square + 8] = index; 
 }
 
 function removePiece(square: number) {
@@ -202,10 +202,9 @@ function removePiece(square: number) {
     BOARD[square] = NULL;
 
     let index = BOARD[square + 8];
-    let lastIndex = --OCCUPIED_SQUARES_LENGTH[getPieceColor(piece)];
-    let lastSquare = OCCUPIED_SQUARES[lastIndex];
-    OCCUPIED_SQUARES[index] = lastSquare;
-    BOARD[lastSquare + 8] = index;
+    let lastIndex = 10 * piece + --PIECE_COUNT[piece];
+    PIECE_LIST[index] = PIECE_LIST[lastIndex];
+    BOARD[PIECE_LIST[lastIndex] + 8] = index;
 }
 
 function parseSquare(squareCoordinates: string): number {
@@ -216,8 +215,8 @@ function parseSquare(squareCoordinates: string): number {
 function initBoard(fen: string = STARTING_FEN) {
     let fenParts = fen.split(' ');
     BOARD.fill(NULL);
-    OCCUPIED_SQUARES.fill(NULL);
-    OCCUPIED_SQUARES_LENGTH = [1, 17];
+    PIECE_COUNT.fill(NULL);
+    PIECE_LIST.fill(NULL);
 
     let fenBoard = fenParts[0];
     let index = 0;
@@ -225,14 +224,7 @@ function initBoard(fen: string = STARTING_FEN) {
         if (c == '/') {
             index += 8;
         } else if (isNaN(parseInt(c, 10))) {
-            let piece = FEN_CHAR_TO_PIECE_CODE.get(c)!;
-            if (getPieceType(piece) != KING) {
-                addPiece(piece, index);
-            } else {
-                BOARD[index] = piece;
-                BOARD[index + 8] = 16 * getPieceColor(piece);
-                OCCUPIED_SQUARES[16 * getPieceColor(piece)] = index;
-            }
+            addPiece(FEN_CHAR_TO_PIECE_CODE.get(c)!, index);
             index += 1;
         } else {
             index += parseInt(c, 10);
@@ -321,76 +313,78 @@ function generateMoves(): number[] {
     let toPiece;
     let forward = UP * (1 - 2 * ACTIVE_COLOR);
 
-    for (let os = 16 * ACTIVE_COLOR; os < OCCUPIED_SQUARES_LENGTH[ACTIVE_COLOR]; os++) {
-        fromSquare = OCCUPIED_SQUARES[os];
-        piece = BOARD[fromSquare];
-        let pieceType = getPieceType(piece);
+    for (let pieceType = PAWN; pieceType <= QUEEN; pieceType++) {
+        piece = makePiece(ACTIVE_COLOR, pieceType);
+        let pieceCount = PIECE_COUNT[piece];
+        for (let p = 0; p < pieceCount; p++) {
+            fromSquare = PIECE_LIST[10 * piece + p];
 
-        if (pieceType == PAWN) {
-            toSquare = fromSquare + forward;
-            if (BOARD[toSquare] == NULL) {
-                if ((toSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR]) {
-                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_QUEEN, fromSquare, toSquare));
-                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_ROOK, fromSquare, toSquare));
-                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_BISHOP, fromSquare, toSquare));
-                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_KNIGHT, fromSquare, toSquare));
-                } else {
-                    moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE, fromSquare, toSquare));
+            if (pieceType == PAWN) {
+                toSquare = fromSquare + forward;
+                if (BOARD[toSquare] == NULL) {
+                    if ((toSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR]) {
+                        moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_QUEEN, fromSquare, toSquare));
+                        moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_ROOK, fromSquare, toSquare));
+                        moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_BISHOP, fromSquare, toSquare));
+                        moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_KNIGHT, fromSquare, toSquare));
+                    } else {
+                        moveList.push(createMove(MF_PAWN_PUSH_1_SQUARE, fromSquare, toSquare));
 
-                    if ((fromSquare & RANK_MASK) == PAWN_STARTING_RANK[ACTIVE_COLOR]) {
-                        toSquare += forward;
-                        if (BOARD[toSquare] == NULL) {
-                            moveList.push(createMove(MF_PAWN_PUSH_2_SQUARES, fromSquare, toSquare));
+                        if ((fromSquare & RANK_MASK) == PAWN_STARTING_RANK[ACTIVE_COLOR]) {
+                            toSquare += forward;
+                            if (BOARD[toSquare] == NULL) {
+                                moveList.push(createMove(MF_PAWN_PUSH_2_SQUARES, fromSquare, toSquare));
+                            }
                         }
                     }
                 }
-            }
 
-            for (let lr = LEFT; lr <= RIGHT; lr += 2) {
-                toSquare = fromSquare + forward + lr;
-                if (toSquare & OUT_OF_BOARD_MASK) continue;
-
-                toPiece = BOARD[toSquare];
-                if (toPiece != NULL && getPieceColor(toPiece) != ACTIVE_COLOR) {
-                    if ((toSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR]) {
-                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_QUEEN, fromSquare, toSquare, toPiece));
-                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_ROOK, fromSquare, toSquare, toPiece));
-                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_BISHOP, fromSquare, toSquare, toPiece));
-                        moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_KNIGHT, fromSquare, toSquare, toPiece));
-                    } else {
-                        moveList.push(createMove(MF_PAWN_CAPTURE, fromSquare, toSquare, toPiece));
-                    }
-                }
-                if (toSquare == EN_PASSANT_SQUARE) {
-                    moveList.push(createMove(MF_PAWN_CAPTURE_EN_PASSANT, fromSquare, toSquare));
-                }
-            }
-
-        } else {
-            let slide = pieceType & PIECE_SLIDER_MASK;
-            let directions = MOVE_DIRECTIONS[pieceType];
-            for (let d = 0; d < directions.length; d++) {
-                toSquare = fromSquare;
-                do {
-                    toSquare += directions[d];
-                    if (toSquare & OUT_OF_BOARD_MASK) break;
+                for (let lr = LEFT; lr <= RIGHT; lr += 2) {
+                    toSquare = fromSquare + forward + lr;
+                    if (toSquare & OUT_OF_BOARD_MASK) continue;
 
                     toPiece = BOARD[toSquare];
-                    if (toPiece != NULL) {
-                        if (getPieceColor(toPiece) != ACTIVE_COLOR) {
-                            moveList.push(createMove(MF_PIECE_CAPTURE_MOVE, fromSquare, toSquare, toPiece));
+                    if (toPiece != NULL && getPieceColor(toPiece) != ACTIVE_COLOR) {
+                        if ((toSquare & RANK_MASK) == PAWN_PROMOTING_RANK[ACTIVE_COLOR]) {
+                            moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_QUEEN, fromSquare, toSquare, toPiece));
+                            moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_ROOK, fromSquare, toSquare, toPiece));
+                            moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_BISHOP, fromSquare, toSquare, toPiece));
+                            moveList.push(createMove(MF_PAWN_CAPTURE_AND_PROMOTE_TO_KNIGHT, fromSquare, toSquare, toPiece));
+                        } else {
+                            moveList.push(createMove(MF_PAWN_CAPTURE, fromSquare, toSquare, toPiece));
                         }
-                        break;
                     }
+                    if (toSquare == EN_PASSANT_SQUARE) {
+                        moveList.push(createMove(MF_PAWN_CAPTURE_EN_PASSANT, fromSquare, toSquare));
+                    }
+                }
 
-                    moveList.push(createMove(MF_PIECE_NORMAL_MOVE, fromSquare, toSquare));
-                } while (slide);
+            } else {
+                let slide = pieceType & PIECE_SLIDER_MASK;
+                let directions = MOVE_DIRECTIONS[pieceType];
+                for (let d = 0; d < directions.length; d++) {
+                    toSquare = fromSquare;
+                    do {
+                        toSquare += directions[d];
+                        if (toSquare & OUT_OF_BOARD_MASK) break;
+
+                        toPiece = BOARD[toSquare];
+                        if (toPiece != NULL) {
+                            if (getPieceColor(toPiece) != ACTIVE_COLOR) {
+                                moveList.push(createMove(MF_PIECE_CAPTURE_MOVE, fromSquare, toSquare, toPiece));
+                            }
+                            break;
+                        }
+
+                        moveList.push(createMove(MF_PIECE_NORMAL_MOVE, fromSquare, toSquare));
+                    } while (slide);
+                }
             }
         }
     }
 
     if (KINGSIDE_CASTLING[ACTIVE_COLOR] & CASTLING_RIGHTS) {
-        let kingSquare = OCCUPIED_SQUARES[ACTIVE_COLOR * 16];
+        let kingSquare = PIECE_LIST[makePiece(ACTIVE_COLOR, KING) * 10];
         if (BOARD[kingSquare + RIGHT] == NULL
             && BOARD[kingSquare + RIGHT + RIGHT] == NULL) {
 
@@ -402,7 +396,7 @@ function generateMoves(): number[] {
     }
 
     if (QUEENSIDE_CASTLING[ACTIVE_COLOR] & CASTLING_RIGHTS) {
-        let kingSquare = OCCUPIED_SQUARES[ACTIVE_COLOR * 16];
+        let kingSquare = PIECE_LIST[makePiece(ACTIVE_COLOR, KING) * 10];
         if (BOARD[kingSquare + LEFT] == NULL
             && BOARD[kingSquare + LEFT + LEFT] == NULL
             && BOARD[kingSquare + LEFT + LEFT + LEFT] == NULL) {
@@ -507,7 +501,7 @@ function perft(depth: number) {
     for (m = 0; m < moveList.length; m++) {
         move = moveList[m];
         makeMove(move);
-        if (!isSquareAttacked(OCCUPIED_SQUARES[(1 - ACTIVE_COLOR) * 16], ACTIVE_COLOR)) {
+        if (!isSquareAttacked(PIECE_LIST[makePiece(1 - ACTIVE_COLOR, KING) * 10], ACTIVE_COLOR)) {
             nodes += perft(depth - 1);
         }
         takeback(move);
