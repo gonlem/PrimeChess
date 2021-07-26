@@ -414,37 +414,37 @@ function generateMoves(): number[] {
 function makeMove(move: number): void {
     EN_PASSANT_SQUARE = SQUARE_NULL;
     PLY_CLOCK++;
-    let moveFlags = move & 0xFF;
+    
     let fromSquare = (move >> 8) & 0xFF;
     let toSquare = (move >> 16) & 0xFF;
 
-    if (moveFlags & PAWN_MOVE_OR_CAPTURE_MASK) {
+    if (move & PAWN_MOVE_OR_CAPTURE_MASK) {
         PLY_CLOCK = 0;
     }
 
-    if (moveFlags & CAPTURE_BIT) {
-        if (moveFlags & PAWN_SPECIAL_BIT) {
+    if (move & CAPTURE_BIT) {
+        if (move & PAWN_SPECIAL_BIT) {
             removePiece((fromSquare & RANK_MASK) + (toSquare & FILE_MASK));
         } else {
             removePiece(toSquare);
         }
     } else {
-        if (moveFlags & PAWN_SPECIAL_BIT) {
+        if (move & PAWN_SPECIAL_BIT) {
             EN_PASSANT_SQUARE = (fromSquare + toSquare) / 2;
         }
     }
 
-    if (moveFlags & PROMOTION_MASK) {
+    if (move & PROMOTION_MASK) {
         removePiece(fromSquare);
-        let promotedPiece = makePiece(ACTIVE_COLOR, (moveFlags & PROMOTION_MASK) >> 5);
+        let promotedPiece = makePiece(ACTIVE_COLOR, (move & PROMOTION_MASK) >> 5);
         addPiece(promotedPiece, toSquare);
     } else {
         movePiece(fromSquare, toSquare);
     }
 
-    if (moveFlags & KINGSIDE_CASTLING_BIT) {
+    if (move & KINGSIDE_CASTLING_BIT) {
         movePiece(toSquare + RIGHT, toSquare + LEFT);
-    } else if (moveFlags & QUEENSIDE_CASTLING_BIT) {
+    } else if (move & QUEENSIDE_CASTLING_BIT) {
         movePiece(toSquare + LEFT + LEFT, toSquare + RIGHT);
     }
 
@@ -457,28 +457,27 @@ function makeMove(move: number): void {
 function takeback(move: number): void {
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 
-    let moveFlags = move & 0xFF;
     let fromSquare = (move >> 8) & 0xFF;
     let toSquare = (move >> 16) & 0xFF;
 
-    if (moveFlags & PROMOTION_MASK) {
+    if (move & PROMOTION_MASK) {
         removePiece(toSquare);
         addPiece(makePiece(ACTIVE_COLOR, PAWN), fromSquare);
     } else {
         movePiece(toSquare, fromSquare);
     }
 
-    if (moveFlags & CAPTURE_BIT) {
-        if (moveFlags & PAWN_SPECIAL_BIT) {
+    if (move & CAPTURE_BIT) {
+        if (move & PAWN_SPECIAL_BIT) {
             addPiece(makePiece(1 - ACTIVE_COLOR, PAWN), (fromSquare & RANK_MASK) + (toSquare & FILE_MASK));
         } else {
             addPiece((move >> 24) & 0x0F, toSquare);
         }
     }
 
-    if (moveFlags & KINGSIDE_CASTLING_BIT) {
+    if (move & KINGSIDE_CASTLING_BIT) {
         movePiece(toSquare + LEFT, toSquare + RIGHT);
-    } else if (moveFlags & QUEENSIDE_CASTLING_BIT) {
+    } else if (move & QUEENSIDE_CASTLING_BIT) {
         movePiece(toSquare + RIGHT, toSquare + LEFT + LEFT);
     }
 }
