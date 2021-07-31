@@ -82,7 +82,7 @@ const PIECE_SLIDER_MASK = 0x04;
 const OUT_OF_BOARD_MASK = 0x88;
 const FILE_MASK = 0x0F;
 const RANK_MASK = 0xF0;
-const SQUARE_NULL = 0x7F;
+const SQUARE_NULL = 0x88;
 
 const RANK_1 = 0x70;
 const RANK_2 = 0x60;
@@ -117,6 +117,10 @@ const MF_PIECE_NORMAL_MOVE = 0;
 const MF_PIECE_CAPTURE_MOVE = CAPTURE_BIT;
 const MF_KINGSIDE_CASTLING = KINGSIDE_CASTLING_BIT;
 const MF_QUEENSIDE_CASTLING = QUEENSIDE_CASTLING_BIT;
+
+const PIECE_TYPE_TO_CHAR = new Map([
+    [PAWN, 'p'], [KNIGHT, 'n'], [BISHOP, 'b'], [ROOK, 'r'], [QUEEN, 'q'], [KING, 'k']
+]);
 
 const FEN_CHAR_TO_PIECE_CODE = new Map([
     ['P', WHITE_PAWN], ['N', WHITE_KNIGHT], ['B', WHITE_BISHOP], ['R', WHITE_ROOK], ['Q', WHITE_QUEEN], ['K', WHITE_KING],
@@ -519,6 +523,14 @@ function toSquareCoordinates(square: number) {
     return file + rank;
 }
 
+function toMoveString(move: number) {
+    let moveString = toSquareCoordinates((move >> 8) & 0xFF) + toSquareCoordinates((move >> 16) & 0xFF);
+    if (move & PROMOTION_MASK) {
+        moveString += PIECE_TYPE_TO_CHAR.get((move & PROMOTION_MASK) >> 5);
+    }
+    return moveString;
+}
+
 function printBoard() {
     let printableBoard = '';
     for (let square = 0; square < BOARD.length; square++) {
@@ -527,6 +539,31 @@ function printBoard() {
         if ((square + RIGHT) & 0x08) printableBoard += '\n';
     }
     console.log(printableBoard);
+}
+
+function divide(depth: number) {
+    printBoard();
+    let startTime = Date.now();
+    let totalNodes = 0, moveNodes;
+    let state = createGlobalState();
+    let move, moveList = generateMoves();
+    for (let m = 0; m < moveList.length; m++) {
+        move = moveList[m];
+        makeMove(move);
+        if (!isSquareAttacked(PIECE_LIST[makePiece(1 - ACTIVE_COLOR, KING) * 10], ACTIVE_COLOR)) {
+            moveNodes = perft(depth - 1);
+            console.log(toMoveString(move) + ' : ' + moveNodes);
+            totalNodes += moveNodes;
+        }
+        takeback(move);
+        restoreGlobalState(state);
+    }
+    let endTime = Date.now();
+    let time = endTime - startTime;
+    console.log('Total nodes : ' + totalNodes);
+    console.log('Total time (ms) : ' + time);
+    console.log('Nodes per second : ' + Math.round(1000 * totalNodes / time))
+    return totalNodes;
 }
 
 function testPerft() {
@@ -577,5 +614,8 @@ function bench() {
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-bench();
+//bench();
 //testPerft();
+
+initBoard('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1');
+divide(5);
