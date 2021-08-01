@@ -636,7 +636,7 @@ function cleanPrincipalVariation(depth: number) {
 }
 
 function checkStopConditions() {
-    if (FORCE_STOP && (NODE_COUNT & 2047)) {
+    if (FORCE_STOP && !(NODE_COUNT & 2047)) {
         if ((Date.now() - SEARCH_STARTING_TIME > TIME_LIMIT - 10) || (NODE_COUNT + 2048 > NODE_LIMIT)) {
             STOP_SEARCH = true;
         }
