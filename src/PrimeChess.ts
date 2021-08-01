@@ -259,27 +259,28 @@ function movePiece(fromSquare: number, toSquare: number) {
     let piece = BOARD[fromSquare];
     BOARD[fromSquare] = NULL;
     BOARD[toSquare] = piece;
-    
-    let i = 10 * piece;
-    while (PIECE_LIST[i] != fromSquare) i++;
-    PIECE_LIST[i] = toSquare;
+
+    let index = BOARD[fromSquare + 8];
+    PIECE_LIST[index] = toSquare;
+    BOARD[toSquare + 8] = index;
 }
 
 function addPiece(piece: number, square: number) {
     BOARD[square] = piece;
-    
-    let pieceCount = PIECE_COUNT[piece]++;
-    PIECE_LIST[piece * 10 + pieceCount] = square;
+
+    let index = 10 * piece + PIECE_COUNT[piece]++;
+    PIECE_LIST[index] = square;
+    BOARD[square + 8] = index; 
 }
 
 function removePiece(square: number) {
     let piece = BOARD[square];
     BOARD[square] = NULL;
-    
-    let i = 10 * piece;
-    let lastIndex = --PIECE_COUNT[piece] + i;
-    while (PIECE_LIST[i] != square) i++;
-    PIECE_LIST[i] = PIECE_LIST[lastIndex];
+
+    let index = BOARD[square + 8];
+    let lastIndex = 10 * piece + --PIECE_COUNT[piece];
+    PIECE_LIST[index] = PIECE_LIST[lastIndex];
+    BOARD[PIECE_LIST[lastIndex] + 8] = index;
 }
 
 function parseSquare(squareCoordinates: string): number {
