@@ -294,19 +294,11 @@ function toSquareCoordinates(square: number) {
     return file + rank;
 }
 
-function clearBoard() {
+function initBoard(fen: string = STARTING_FEN) {
+    let fenParts = fen.split(' ');
     BOARD.fill(NULL);
     PIECE_COUNT.fill(NULL);
     PIECE_LIST.fill(NULL);
-    ACTIVE_COLOR = WHITE;
-    EN_PASSANT_SQUARE = SQUARE_NULL;
-    CASTLING_RIGHTS = NULL;
-    FIFTY_MOVES_CLOCK = 0;
-}
-
-function initBoard(fen: string = STARTING_FEN) {
-    let fenParts = fen.split(' ');
-    clearBoard();
 
     let fenBoard = fenParts[0];
     let index = 0;
@@ -322,22 +314,23 @@ function initBoard(fen: string = STARTING_FEN) {
         }
     }
 
-    let fenActiveColor = fenParts[1];
-    if (fenActiveColor == 'b') ACTIVE_COLOR = BLACK;
+    let fenActiveColor = fenParts[1] ?? 'w';
+    ACTIVE_COLOR = (fenActiveColor == 'b') ? BLACK : WHITE;
 
-    let fenCastlingRights = fenParts[2];
+    let fenCastlingRights = fenParts[2] ?? '';
+    CASTLING_RIGHTS = NULL;
     if (fenCastlingRights.includes('K')) CASTLING_RIGHTS |= KINGSIDE_CASTLING[WHITE];
     if (fenCastlingRights.includes('Q')) CASTLING_RIGHTS |= QUEENSIDE_CASTLING[WHITE];
     if (fenCastlingRights.includes('k')) CASTLING_RIGHTS |= KINGSIDE_CASTLING[BLACK];
     if (fenCastlingRights.includes('q')) CASTLING_RIGHTS |= QUEENSIDE_CASTLING[BLACK];
 
-    let fenEnPassantSquare = fenParts[3];
-    if (fenEnPassantSquare != '-') EN_PASSANT_SQUARE = parseSquare(fenEnPassantSquare);
+    let fenEnPassantSquare = fenParts[3] ?? '-';
+    EN_PASSANT_SQUARE = (fenEnPassantSquare != '-') ? parseSquare(fenEnPassantSquare) : SQUARE_NULL;
 
-    let fenHalfMoveClock = fenParts[4];
+    let fenHalfMoveClock = fenParts[4] ?? '0';
     FIFTY_MOVES_CLOCK = parseInt(fenHalfMoveClock, 10);
 
-    let fenFullMoveCount = fenParts[5];
+    let fenFullMoveCount = fenParts[5] ?? '1';
     GAME_PLY = 2 * (parseInt(fenFullMoveCount, 10) - 1) + ACTIVE_COLOR;
 }
 
