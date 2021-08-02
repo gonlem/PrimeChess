@@ -880,8 +880,6 @@ function parseGoCommand(commandParts: string[]) {
         default:
             let availableTime = (ACTIVE_COLOR == WHITE) ? commandParts.indexOf('wtime') : commandParts.indexOf('btime');
             if (availableTime > 0) availableTime = parseInt(commandParts[availableTime + 1], 10);
-            let increment = (ACTIVE_COLOR == WHITE) ? commandParts.indexOf('winc') : commandParts.indexOf('binc');
-            if (increment > 0) increment = parseInt(commandParts[increment + 1], 10);
             let movesToGo = commandParts.indexOf('movestogo');
             if (movesToGo > 0) {
                 movesToGo = Math.min(40, parseInt(commandParts[movesToGo + 1], 10));
@@ -889,7 +887,7 @@ function parseGoCommand(commandParts: string[]) {
                 movesToGo = 40;
             }
             if (movesToGo > 3) FORCE_STOP = false;
-            TIME_LIMIT = (availableTime / movesToGo) + increment;
+            TIME_LIMIT = availableTime / movesToGo;
     }
 }
 
