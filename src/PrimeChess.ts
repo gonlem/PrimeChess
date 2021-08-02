@@ -447,40 +447,22 @@ function generateMoves(captureOnly: boolean = false): number[] {
 }
 
 function sortMoveList(moveList: number[]) {
-    let j = 0;
-    let key = 0;
-    let capturedPiece = 0;
+    let move, capturedPiece, j = 0;
     for (let i = 1; i < moveList.length; i++) {
-        key = moveList[i];
-        capturedPiece = getCapturedPiece(key);
+        move = moveList[i];
+        capturedPiece = (move >> 24) & 0x0F;
         j = i - 1;
-        while (j >= 0 && getCapturedPiece(moveList[j]) < capturedPiece) {
+        while (j >= 0 && ((moveList[j] >> 24) & 0x0F) < capturedPiece) {
             moveList[j + 1] = moveList[j];
             j = j - 1;
         }
-        moveList[j + 1] = key;
+        moveList[j + 1] = move;
     }
     return moveList;
 }
 
 function createMove(moveFlags: number, fromSquare: number, toSquare: number, capturedPiece: number = NULL): number {
     return moveFlags | (fromSquare << 8) | (toSquare << 16) | (capturedPiece << 24);
-}
-
-function getMoveFlags(move: number) {
-    return move & 0xFF;
-}
-
-function getFromSquare(move: number) {
-    return (move >> 8) & 0xFF;
-}
-
-function getToSquare(move: number) {
-    return (move >> 16) & 0xFF;
-}
-
-function getCapturedPiece(move: number) {
-    return (move >> 24) & 0x0F;
 }
 
 function createGlobalState(): number {
@@ -498,37 +480,36 @@ function makeMove(move: number): void {
     EN_PASSANT_SQUARE = SQUARE_NULL;
     FIFTY_MOVES_CLOCK++;
 
-    let moveFlags = getMoveFlags(move);
-    let fromSquare = getFromSquare(move);
-    let toSquare = getToSquare(move);
+    let fromSquare = (move >> 8) & 0xFF;
+    let toSquare = (move >> 16) & 0xFF;
 
-    if (moveFlags & PAWN_MOVE_OR_CAPTURE_MASK) {
+    if (move & PAWN_MOVE_OR_CAPTURE_MASK) {
         FIFTY_MOVES_CLOCK = 0;
     }
 
-    if (moveFlags & CAPTURE_BIT) {
-        if (moveFlags & PAWN_SPECIAL_BIT) {
+    if (move & CAPTURE_BIT) {
+        if (move & PAWN_SPECIAL_BIT) {
             removePiece((fromSquare & RANK_MASK) + (toSquare & FILE_MASK));
         } else {
             removePiece(toSquare);
         }
     } else {
-        if (moveFlags & PAWN_SPECIAL_BIT) {
+        if (move & PAWN_SPECIAL_BIT) {
             EN_PASSANT_SQUARE = (fromSquare + toSquare) / 2;
         }
     }
 
-    if (moveFlags & PROMOTION_MASK) {
+    if (move & PROMOTION_MASK) {
         removePiece(fromSquare);
-        let promotedPiece = makePiece(ACTIVE_COLOR, (moveFlags & PROMOTION_MASK) >> 5);
+        let promotedPiece = makePiece(ACTIVE_COLOR, (move & PROMOTION_MASK) >> 5);
         addPiece(promotedPiece, toSquare);
     } else {
         movePiece(fromSquare, toSquare);
     }
 
-    if (moveFlags & KINGSIDE_CASTLING_BIT) {
+    if (move & KINGSIDE_CASTLING_BIT) {
         movePiece(toSquare + RIGHT, toSquare + LEFT);
-    } else if (moveFlags & QUEENSIDE_CASTLING_BIT) {
+    } else if (move & QUEENSIDE_CASTLING_BIT) {
         movePiece(toSquare + LEFT + LEFT, toSquare + RIGHT);
     }
 
@@ -543,28 +524,27 @@ function takeback(move: number): void {
 
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 
-    let moveFlags = getMoveFlags(move);
-    let fromSquare = getFromSquare(move);
-    let toSquare = getToSquare(move);
+    let fromSquare = (move >> 8) & 0xFF;
+    let toSquare = (move >> 16) & 0xFF;
 
-    if (moveFlags & PROMOTION_MASK) {
+    if (move & PROMOTION_MASK) {
         removePiece(toSquare);
         addPiece(makePiece(ACTIVE_COLOR, PAWN), fromSquare);
     } else {
         movePiece(toSquare, fromSquare);
     }
 
-    if (moveFlags & CAPTURE_BIT) {
-        if (moveFlags & PAWN_SPECIAL_BIT) {
+    if (move & CAPTURE_BIT) {
+        if (move & PAWN_SPECIAL_BIT) {
             addPiece(makePiece(1 - ACTIVE_COLOR, PAWN), (fromSquare & RANK_MASK) + (toSquare & FILE_MASK));
         } else {
-            addPiece(getCapturedPiece(move), toSquare);
+            addPiece((move >> 24) & 0x0F, toSquare);
         }
     }
 
-    if (moveFlags & KINGSIDE_CASTLING_BIT) {
+    if (move & KINGSIDE_CASTLING_BIT) {
         movePiece(toSquare + LEFT, toSquare + RIGHT);
-    } else if (moveFlags & QUEENSIDE_CASTLING_BIT) {
+    } else if (move & QUEENSIDE_CASTLING_BIT) {
         movePiece(toSquare + RIGHT, toSquare + LEFT + LEFT);
     }
 }
@@ -850,10 +830,9 @@ function parseMove(move: string) {
 }
 
 function toMoveString(move: number) {
-    let moveString = toSquareCoordinates(getFromSquare(move)) + toSquareCoordinates(getToSquare(move));
-    let moveFlags = getMoveFlags(move);
-    if (moveFlags & PROMOTION_MASK) {
-        moveString += PIECE_TYPE_TO_CHAR.get((moveFlags & PROMOTION_MASK) >> 5);
+    let moveString = toSquareCoordinates((move >> 8) & 0xFF) + toSquareCoordinates((move >> 16) & 0xFF);
+    if (move & PROMOTION_MASK) {
+        moveString += PIECE_TYPE_TO_CHAR.get((move & PROMOTION_MASK) >> 5);
     }
     return moveString;
 }
@@ -952,5 +931,5 @@ export {
     WHITE, BLACK, KING, QUEEN, OUT_OF_BOARD_MASK, RIGHT, NULL,
     WHITE_PAWN, WHITE_KNIGHT, WHITE_BISHOP, WHITE_ROOK, WHITE_QUEEN, WHITE_KING,
     BLACK_PAWN, BLACK_KNIGHT, BLACK_BISHOP, BLACK_ROOK, BLACK_QUEEN, BLACK_KING,
-    BOARD, PIECE_LIST, initBoard, makePiece, getFromSquare, getToSquare, toSquareCoordinates, perft, search
+    BOARD, PIECE_LIST, initBoard, makePiece, toSquareCoordinates, perft, search
 };

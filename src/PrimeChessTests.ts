@@ -2,7 +2,7 @@ import {
     WHITE, BLACK, KING, QUEEN, OUT_OF_BOARD_MASK, RIGHT, NULL,
     WHITE_PAWN, WHITE_KNIGHT, WHITE_BISHOP, WHITE_ROOK, WHITE_QUEEN, WHITE_KING,
     BLACK_PAWN, BLACK_KNIGHT, BLACK_BISHOP, BLACK_ROOK, BLACK_QUEEN, BLACK_KING,
-    BOARD, PIECE_LIST, initBoard, makePiece, getFromSquare, getToSquare, toSquareCoordinates, perft, search
+    BOARD, PIECE_LIST, initBoard, makePiece, toSquareCoordinates, perft, search
 } from './PrimeChess.js';
 
 ////////////////////////////////////////////////////////////////
@@ -23,12 +23,6 @@ function printBoard() {
         if ((square + RIGHT) & 0x08) printableBoard += '\n';
     }
     console.log(printableBoard);
-}
-
-function printMove(move: number) {
-    let fromSquare = getFromSquare(move);
-    let toSquare = getToSquare(move);
-    console.log(PIECE_CODE_TO_PRINTABLE_CHAR.get(BOARD[fromSquare]) + ' moves from ' + toSquareCoordinates(fromSquare) + ' to ' + toSquareCoordinates(toSquare));
 }
 
 function printPieceList() {
@@ -126,6 +120,6 @@ function testSearch() {
 //  TESTS                                                     //
 ////////////////////////////////////////////////////////////////
 
-bench();
+//bench();
 //testPerft();
-//testSearch();
+testSearch();
