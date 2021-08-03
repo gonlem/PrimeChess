@@ -1,48 +1,10 @@
 import {
-    WHITE, BLACK, KING, QUEEN, OUT_OF_BOARD_MASK, RIGHT, NULL,
-    WHITE_PAWN, WHITE_KNIGHT, WHITE_BISHOP, WHITE_ROOK, WHITE_QUEEN, WHITE_KING,
-    BLACK_PAWN, BLACK_KNIGHT, BLACK_BISHOP, BLACK_ROOK, BLACK_QUEEN, BLACK_KING,
-    BOARD, PIECE_LIST, initBoard, makePiece, toSquareCoordinates, perft, search
+    initBoard, printBoard, perft, search
 } from './PrimeChess.js';
 
 ////////////////////////////////////////////////////////////////
 //  DISPLAYING AND DEBUGGING FUNCTIONS                        //
 ////////////////////////////////////////////////////////////////
-
-const PIECE_CODE_TO_PRINTABLE_CHAR = new Map([
-    [WHITE_PAWN, '\u2659'], [WHITE_KNIGHT, '\u2658'], [WHITE_BISHOP, '\u2657'], [WHITE_ROOK, '\u2656'], [WHITE_QUEEN, '\u2655'], [WHITE_KING, '\u2654'],
-    [BLACK_PAWN, '\u265F'], [BLACK_KNIGHT, '\u265E'], [BLACK_BISHOP, '\u265D'], [BLACK_ROOK, '\u265C'], [BLACK_QUEEN, '\u265B'], [BLACK_KING, '\u265A'],
-    [NULL, '.']
-]);
-
-function printBoard() {
-    let printableBoard = '';
-    for (let square = 0; square < BOARD.length; square++) {
-        if (square & OUT_OF_BOARD_MASK) continue;
-        printableBoard += PIECE_CODE_TO_PRINTABLE_CHAR.get(BOARD[square]) + ' ';
-        if ((square + RIGHT) & 0x08) printableBoard += '\n';
-    }
-    console.log(printableBoard);
-}
-
-function printPieceList() {
-    let printablePieceList = '';
-    for (let color = WHITE; color <= BLACK; color++) {
-        for (let pieceType = KING; pieceType <= QUEEN; pieceType++) {
-            let pieceCount = PIECE_LIST[color * 80 + pieceType];
-            if (pieceCount > 0) {
-                let piece = makePiece(color, pieceType);
-                printablePieceList += PIECE_CODE_TO_PRINTABLE_CHAR.get(piece) + ' : ';
-                for (let p = 0; p < pieceCount; p++) {
-                    let square = PIECE_LIST[10 * piece + p];
-                    printablePieceList += toSquareCoordinates(square) + ' ';
-                }
-                printablePieceList += '\n';
-            }
-        }
-    }
-    console.log(printablePieceList);
-}
 
 function testPerft() {
     let perftTests = new Map<string, number[]>();
@@ -120,6 +82,6 @@ function testSearch() {
 //  TESTS                                                     //
 ////////////////////////////////////////////////////////////////
 
-//bench();
 //testPerft();
+//bench();
 testSearch();
