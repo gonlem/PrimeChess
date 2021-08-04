@@ -1,6 +1,4 @@
-import {
-    initBoard, printBoard, perft, search
-} from './PrimeChess.js';
+import { initBoard, printBoard, perft, search } from './PrimeChess.js';
 
 ////////////////////////////////////////////////////////////////
 //  DISPLAYING AND DEBUGGING FUNCTIONS                        //

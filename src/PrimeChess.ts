@@ -287,13 +287,43 @@ function removePiece(square: number) {
 
 function parseSquare(squareCoordinates: string): number {
     return (squareCoordinates.charCodeAt(0) - 'a'.charCodeAt(0))
-        - 16 * (squareCoordinates.charCodeAt(1) - '8'.charCodeAt(0));
+    - 16 * (squareCoordinates.charCodeAt(1) - '8'.charCodeAt(0));
 }
 
 function toSquareCoordinates(square: number) {
     let file = String.fromCharCode('a'.charCodeAt(0) + (square & FILE_MASK));
     let rank = 8 - ((square & RANK_MASK) >> 4);
     return file + rank;
+}
+
+function createMove(moveFlags: number, fromSquare: number, toSquare: number, fromPiece: number, toPiece: number): number {
+    return moveFlags | (fromSquare << 8) | (toSquare << 16) | (fromPiece << 24) | (toPiece << 28);
+}
+
+function getFromSquare(move: number) {
+    return (move >> 8) & 0xFF;
+}
+
+function getToSquare(move: number) {
+    return (move >> 16) & 0xFF;
+}
+
+function getFromPiece(move: number) {
+    return (move >> 24) & 0x0F;
+}
+
+function getToPiece(move: number) {
+    return (move >> 28) & 0x0F;
+}
+
+function createGlobalState(): number {
+    return EN_PASSANT_SQUARE | (CASTLING_RIGHTS << 8) | (FIFTY_MOVES_CLOCK << 12);
+}
+
+function restoreGlobalState(state: number) {
+    EN_PASSANT_SQUARE = state & 0xFF;
+    CASTLING_RIGHTS = (state >> 8) & 0x0F;
+    FIFTY_MOVES_CLOCK = (state >> 12) & 0xFF;
 }
 
 function initBoard(fen: string = STARTING_FEN) {
@@ -334,6 +364,57 @@ function initBoard(fen: string = STARTING_FEN) {
 
     let fenFullMoveCount = fenParts[5] ?? '1';
     GAME_PLY = 2 * (parseInt(fenFullMoveCount, 10) - 1) + ACTIVE_COLOR;
+}
+
+function isSquareAttacked(square: number, color: number): boolean {
+    let coloredQueen = makePiece(color, QUEEN);
+    let coloredRook = makePiece(color, ROOK);
+    let coloredBishop = makePiece(color, BISHOP);
+    let coloredKnight = makePiece(color, KNIGHT);
+    let coloredKing = makePiece(color, KING);
+    let coloredPawn = makePiece(color, PAWN);
+    let directions, d, step, targetSquare, targetPiece;
+    
+    directions = MOVE_DIRECTIONS[BISHOP];
+    for (d = 0; d < directions.length; d++) {
+        targetSquare = square; step = 0;
+        do {
+            targetSquare += directions[d]; step++;
+            if (targetSquare & OUT_OF_BOARD_MASK) break;
+            targetPiece = BOARD[targetSquare];
+            if (targetPiece == NULL) continue;
+            if (targetPiece == coloredBishop || targetPiece == coloredQueen) return true;
+            if (step == 1) {
+                if (targetPiece == coloredKing) return true;
+                if (targetPiece == coloredPawn && ((1 - 2 * color) ^ directions[d]) > 0) return true;
+            }
+            break;
+        } while (true);
+    }
+
+    directions = MOVE_DIRECTIONS[ROOK];
+    for (d = 0; d < directions.length; d++) {
+        targetSquare = square; step = 0;
+        do {
+            targetSquare += directions[d]; step++;
+            if (targetSquare & OUT_OF_BOARD_MASK) break;
+            targetPiece = BOARD[targetSquare];
+            if (targetPiece == NULL) continue;
+            if (targetPiece == coloredRook || targetPiece == coloredQueen) return true;
+            if (step == 1 && targetPiece == coloredKing) return true;
+            break;
+        } while (true);
+    }
+
+    directions = MOVE_DIRECTIONS[KNIGHT];
+    for (d = 0; d < directions.length; d++) {
+        targetSquare = square + directions[d];
+        if (targetSquare & OUT_OF_BOARD_MASK) continue;
+        targetPiece = BOARD[targetSquare];
+        if (targetPiece == coloredKnight) return true;
+    }
+
+    return false;
 }
 
 function generateMoves(captureOnly: boolean = false): number[] {
@@ -418,6 +499,7 @@ function generateMoves(captureOnly: boolean = false): number[] {
     if (!captureOnly) {
         let king = makePiece(ACTIVE_COLOR, KING);
         let kingSquare = PIECE_LIST[10 * king];
+
         if (KINGSIDE_CASTLING[ACTIVE_COLOR] & CASTLING_RIGHTS) {
             if (BOARD[kingSquare + RIGHT] == NULL
                 && BOARD[kingSquare + RIGHT + RIGHT] == NULL) {
@@ -441,53 +523,8 @@ function generateMoves(captureOnly: boolean = false): number[] {
             }
         }
     }
-
-    return sortMoveList(moveList);
-}
-
-function sortMoveList(moveList: number[]) {
-    let move, capturedPiece, j = 0;
-    for (let i = 1; i < moveList.length; i++) {
-        move = moveList[i];
-        capturedPiece = getToPiece(move);
-        j = i - 1;
-        while (j >= 0 && getToPiece(moveList[j]) < capturedPiece) {
-            moveList[j + 1] = moveList[j];
-            j = j - 1;
-        }
-        moveList[j + 1] = move;
-    }
+    
     return moveList;
-}
-
-function createMove(moveFlags: number, fromSquare: number, toSquare: number, fromPiece: number, toPiece: number): number {
-    return moveFlags | (fromSquare << 8) | (toSquare << 16) | (fromPiece << 24) | (toPiece << 28);
-}
-
-function getFromSquare(move: number) {
-    return (move >> 8) & 0xFF;
-}
-
-function getToSquare(move: number) {
-    return (move >> 16) & 0xFF;
-}
-
-function getFromPiece(move: number) {
-    return (move >> 24) & 0x0F;
-}
-
-function getToPiece(move: number) {
-    return (move >> 28) & 0x0F;
-}
-
-function createGlobalState(): number {
-    return EN_PASSANT_SQUARE | (CASTLING_RIGHTS << 8) | (FIFTY_MOVES_CLOCK << 12);
-}
-
-function restoreGlobalState(state: number) {
-    EN_PASSANT_SQUARE = state & 0xFF;
-    CASTLING_RIGHTS = (state >> 8) & 0x0F;
-    FIFTY_MOVES_CLOCK = (state >> 12) & 0xFF;
 }
 
 function makeMove(move: number): void {
@@ -564,57 +601,6 @@ function takeback(move: number): void {
     }
 }
 
-function isSquareAttacked(square: number, color: number): boolean {
-    let coloredQueen = makePiece(color, QUEEN);
-    let coloredRook = makePiece(color, ROOK);
-    let coloredBishop = makePiece(color, BISHOP);
-    let coloredKnight = makePiece(color, KNIGHT);
-    let coloredKing = makePiece(color, KING);
-    let coloredPawn = makePiece(color, PAWN);
-    let directions, d, step, targetSquare, targetPiece;
-    
-    directions = MOVE_DIRECTIONS[BISHOP];
-    for (d = 0; d < directions.length; d++) {
-        targetSquare = square; step = 0;
-        do {
-            targetSquare += directions[d]; step++;
-            if (targetSquare & OUT_OF_BOARD_MASK) break;
-            targetPiece = BOARD[targetSquare];
-            if (targetPiece == NULL) continue;
-            if (targetPiece == coloredBishop || targetPiece == coloredQueen) return true;
-            if (step == 1) {
-                if (targetPiece == coloredKing) return true;
-                if (targetPiece == coloredPawn && ((1 - 2 * color) ^ directions[d]) > 0) return true;
-            }
-            break;
-        } while (true);
-    }
-
-    directions = MOVE_DIRECTIONS[ROOK];
-    for (d = 0; d < directions.length; d++) {
-        targetSquare = square; step = 0;
-        do {
-            targetSquare += directions[d]; step++;
-            if (targetSquare & OUT_OF_BOARD_MASK) break;
-            targetPiece = BOARD[targetSquare];
-            if (targetPiece == NULL) continue;
-            if (targetPiece == coloredRook || targetPiece == coloredQueen) return true;
-            if (step == 1 && targetPiece == coloredKing) return true;
-            break;
-        } while (true);
-    }
-
-    directions = MOVE_DIRECTIONS[KNIGHT];
-    for (d = 0; d < directions.length; d++) {
-        targetSquare = square + directions[d];
-        if (targetSquare & OUT_OF_BOARD_MASK) continue;
-        targetPiece = BOARD[targetSquare];
-        if (targetPiece == coloredKnight) return true;
-    }
-
-    return false;
-}
-
 function savePrincipalVariation(move: number, depth: number) {
     let index = (SEARCH_DEPTH - depth) * (SEARCH_DEPTH + 1);
     PV_TABLE[index] = move;
@@ -670,6 +656,21 @@ function evaluate(): number {
     return score;
 }
 
+function sortMoveList(moveList: number[]) {
+    let move, capturedPiece, j = 0;
+    for (let i = 1; i < moveList.length; i++) {
+        move = moveList[i];
+        capturedPiece = getToPiece(move);
+        j = i - 1;
+        while (j >= 0 && getToPiece(moveList[j]) < capturedPiece) {
+            moveList[j + 1] = moveList[j];
+            j = j - 1;
+        }
+        moveList[j + 1] = move;
+    }
+    return moveList;
+}
+
 function sortPVMove(moveList: number[], depth: number) {
     let pvMove = PV_TABLE[SEARCH_DEPTH - depth];
     if (depth <= 1 || pvMove == NULL) {
@@ -678,10 +679,7 @@ function sortPVMove(moveList: number[], depth: number) {
     }
     let i = 0;
     while (moveList[i] != pvMove) i++;
-    while (i > 0) {
-        moveList[i] = moveList[i - 1];
-        i--;
-    }
+    while (i--) moveList[i + 1] = moveList[i];
     moveList[0] = pvMove;
 }
 
@@ -692,7 +690,7 @@ function quiesce(alpha: number, beta: number): number {
     if (STOP_SEARCH) return alpha;
 
     let state = createGlobalState();
-    let moveList = generateMoves(true);
+    let moveList = sortMoveList(generateMoves(true));
     for (let m = 0; m < moveList.length; m++) {
         makeMove(moveList[m]);
         if (isSquareAttacked(PIECE_LIST[10 * makePiece(1 - ACTIVE_COLOR, KING)], ACTIVE_COLOR)) {
@@ -717,7 +715,7 @@ function alphaBeta(alpha: number, beta: number, depth: number): number {
 
     let legalMoveCount = 0;
     let state = createGlobalState();
-    let moveList = generateMoves();
+    let moveList = sortMoveList(generateMoves());
     for (let m = 0; m < moveList.length; m++) {
         if (FOLLOW_PV) sortPVMove(moveList, depth);
 
@@ -751,6 +749,14 @@ function alphaBeta(alpha: number, beta: number, depth: number): number {
     }
 
     return alpha;
+}
+
+function toMoveString(move: number) {
+    let moveString = toSquareCoordinates(getFromSquare(move)) + toSquareCoordinates(getToSquare(move));
+    if (move & PROMOTION_MASK) {
+        moveString += PIECE_TYPE_TO_CHAR.get((move & PROMOTION_MASK) >> 5);
+    }
+    return moveString;
 }
 
 function uciWriteInfoString(score: number, elapsedTime: number) {
@@ -856,14 +862,6 @@ function parseMove(move: string) {
         default:
             return createMove(moveFlags, fromSquare, toSquare, fromPiece, toPiece);
     }
-}
-
-function toMoveString(move: number) {
-    let moveString = toSquareCoordinates(getFromSquare(move)) + toSquareCoordinates(getToSquare(move));
-    if (move & PROMOTION_MASK) {
-        moveString += PIECE_TYPE_TO_CHAR.get((move & PROMOTION_MASK) >> 5);
-    }
-    return moveString;
 }
 
 function parseGoCommand(commandParts: string[]) {
