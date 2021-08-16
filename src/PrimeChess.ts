@@ -669,7 +669,7 @@ function cleanPrincipalVariation(depth: number) {
 
 function checkStopConditions() {
     if (FORCE_STOP && !(NODE_COUNT & 2047)) {
-        if ((Date.now() - SEARCH_STARTING_TIME > TIME_LIMIT - 10) || (NODE_COUNT + 2048 > NODE_LIMIT)) {
+        if ((Date.now() - SEARCH_STARTING_TIME > TIME_LIMIT) || (NODE_COUNT + 2048 > NODE_LIMIT)) {
             STOP_SEARCH = true;
         }
     }
@@ -928,7 +928,7 @@ function parseGoCommand(commandParts: string[]) {
             NODE_LIMIT = parseInt(commandParts[2], 10);
             break;
         case 'movetime':
-            TIME_LIMIT = parseInt(commandParts[2], 10);
+            TIME_LIMIT = parseInt(commandParts[2], 10) - 10;
             break;
         case 'infinite':
             break;
@@ -942,7 +942,7 @@ function parseGoCommand(commandParts: string[]) {
                 movesToGo = 40;
             }
             //if (movesToGo > 5) FORCE_STOP = false;
-            TIME_LIMIT = availableTime / movesToGo;
+            TIME_LIMIT = 1.4 * availableTime / (movesToGo + 0.4) - 10;
     }
 }
 
