@@ -233,6 +233,7 @@ let EN_PASSANT_SQUARE = SQUARE_NULL;
 let CASTLING_RIGHTS = NULL;
 let FIFTY_MOVES_CLOCK = 0;
 let GAME_PLY = 0;
+let SEARCH_PLY = 0;
 
 let NODE_COUNT = 0;
 let SEARCH_DEPTH = 0;
@@ -244,7 +245,6 @@ let TIME_LIMIT = Number.MAX_SAFE_INTEGER;
 let DEPTH_LIMIT = 8;
 let NODE_LIMIT = Number.MAX_SAFE_INTEGER;
 let STOP_SEARCH = false;
-let FORCE_STOP = false;
 let SEARCH_STARTING_TIME = Date.now();
 
 let POSITION_HASH_KEY = 0;
@@ -575,6 +575,7 @@ function makeMove(move: number): void {
     POSITION_HASH_KEY ^= HASH_KEYS[CASTLING_RIGHTS];
 
     GAME_PLY++;
+    SEARCH_PLY++;
     EN_PASSANT_SQUARE = SQUARE_NULL;
     FIFTY_MOVES_CLOCK++;
 
@@ -623,6 +624,7 @@ function makeMove(move: number): void {
 
 function takeback(move: number): void {
     GAME_PLY--;
+    SEARCH_PLY--;
 
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
     POSITION_HASH_KEY ^= COLOR_HASH_KEY;
@@ -663,15 +665,13 @@ function savePrincipalVariation(move: number, depth: number) {
 function cleanPrincipalVariation(depth: number) {
     let index = (SEARCH_DEPTH - depth) * (SEARCH_DEPTH + 1);
     for (let p = 0; p < depth; p++) {
-        PV_TABLE[index + p] = 0;
+        PV_TABLE[index + p] = NULL;
     }
 }
 
 function checkStopConditions() {
-    if (FORCE_STOP && !(NODE_COUNT & 2047)) {
-        if ((Date.now() - SEARCH_STARTING_TIME > TIME_LIMIT) || (NODE_COUNT + 2048 > NODE_LIMIT)) {
-            STOP_SEARCH = true;
-        }
+    if ((Date.now() - SEARCH_STARTING_TIME > TIME_LIMIT) || (NODE_COUNT + 2048 > NODE_LIMIT)) {
+        STOP_SEARCH = true;
     }
 }
 
@@ -695,7 +695,7 @@ function evaluateColor(color: number): number[] {
 
 function evaluate(): number {
     NODE_COUNT++;
-    checkStopConditions();
+    if ((NODE_COUNT & 2047) == 0) checkStopConditions();
 
     let [phaseA, scoreMGA, scoreEGA] = evaluateColor(ACTIVE_COLOR);
     let [phaseB, scoreMGB, scoreEGB] = evaluateColor(1 - ACTIVE_COLOR);
@@ -832,9 +832,7 @@ function search() {
     SEARCH_DEPTH = 0;
     SEARCH_STARTING_TIME = Date.now();
 
-    let score = 0;
-    let elapsedTime = 0;
-    let bestMove = 0;
+    let score = 0, elapsedTime = 0, bestMove = 0;
     do {
         SEARCH_DEPTH++;
         score = alphaBeta(-INFINITY, +INFINITY, SEARCH_DEPTH);
@@ -918,7 +916,6 @@ function parseGoCommand(commandParts: string[]) {
     DEPTH_LIMIT = Number.MAX_SAFE_INTEGER;
     NODE_LIMIT = Number.MAX_SAFE_INTEGER;
     STOP_SEARCH = false;
-    FORCE_STOP = true;
 
     switch (commandParts[1]) {
         case 'depth':
@@ -936,12 +933,7 @@ function parseGoCommand(commandParts: string[]) {
             let availableTime = (ACTIVE_COLOR == WHITE) ? commandParts.indexOf('wtime') : commandParts.indexOf('btime');
             if (availableTime > 0) availableTime = parseInt(commandParts[availableTime + 1], 10);
             let movesToGo = commandParts.indexOf('movestogo');
-            if (movesToGo > 0) {
-                movesToGo = Math.min(40, parseInt(commandParts[movesToGo + 1], 10));
-            } else {
-                movesToGo = 40;
-            }
-            //if (movesToGo > 5) FORCE_STOP = false;
+            movesToGo = (movesToGo > 0) ? Math.min(40, parseInt(commandParts[movesToGo + 1], 10)) : 40;
             TIME_LIMIT = 1.4 * availableTime / (movesToGo + 0.4) - 10;
     }
 }
