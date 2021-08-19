@@ -13,18 +13,18 @@
 //    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 //      A  B  C  D  E  F  G  H
 //
-//  +---------------------------------+   +------------------------------------+
-//  |          PIECE ENCODING         |   |             MOVE FLAGS             |
-//  +-----+-----+------+--------------+   +-----------+------+-----------------+
-//  | DEC | HEX | BIN  | DESCRIPTION  |   | BINARY    | HEX  | DESCRIPTION     |
-//  +-----+-----+------+--------------+   +-----------+------+-----------------+
-//  |   0 |   0 | 0000 | NONE         |   | 0000 0001 | 0x01 | K-SIDE CASTLING |
-//  |   1 |   1 | 0001 | WHITE PAWN   |   | 0000 0010 | 0x02 | Q-SIDE CASTLING |
-//  |   2 |   2 | 0010 | WHITE KING   |   | 0000 0100 | 0x04 | CAPTURE         |
-//  |   3 |   3 | 0011 | WHITE KNIGHT |   | 0000 1000 | 0x08 | PAWN MOVE       |
-//  |   4 |   4 | 0100 | WHITE BISHOP |   | 0001 0000 | 0x10 | PAWN SPECIAL    |
-//  |   5 |   5 | 0101 | WHITE ROOK   |   | 1110 0000 | 0xE0 | PROMOTED PIECE  |
-//  |   6 |   6 | 0110 | WHITE QUEEN  |   +-----------+------+-----------------+
+//  +---------------------------------+   +----------------------------------------+
+//  |          PIECE ENCODING         |   |             MOVE FLAGS                 |
+//  +-----+-----+------+--------------+   +-----------+------+---------------------+
+//  | DEC | HEX | BIN  | DESCRIPTION  |   | BINARY    | HEX  | DESCRIPTION         |
+//  +-----+-----+------+--------------+   +-----------+------+---------------------+
+//  |   0 |   0 | 0000 | NONE         |   | 0000 0111 | 0x07 | PROMOTED PIECE      |
+//  |   1 |   1 | 0001 | WHITE PAWN   |   | 0000 1000 | 0x08 | CASTLING FLAG       |
+//  |   2 |   2 | 0010 | WHITE KING   |   | 0001 0000 | 0x10 | EN PASSANT CAPTURE  |
+//  |   3 |   3 | 0011 | WHITE KNIGHT |   | 0010 0000 | 0x20 | PAWN PUSH 2 SQUARES |
+//  |   4 |   4 | 0100 | WHITE BISHOP |   | 0100 0000 | 0x40 | CAPTURE MOVE        |
+//  |   5 |   5 | 0101 | WHITE ROOK   |   | 1000 0000 | 0x80 | RESET PLY CLOCK     |
+//  |   6 |   6 | 0110 | WHITE QUEEN  |   +-----------+------+---------------------+
 //  |   7 |   7 | 0111 |              |
 //  |   8 |   8 | 1000 |              |
 //  |   9 |   9 | 1001 | BLACK PAWN   |
@@ -90,33 +90,34 @@ const RANK_7 = 0x10;
 const RANK_8 = 0x00;
 const PAWN_STARTING_RANK = [RANK_2, RANK_7];
 const PAWN_PROMOTING_RANK = [RANK_8, RANK_1];
+const FILE_G = 0x06;
+const KINGSIDE_CASTLING = new Uint8Array([1, 4]);
+const QUEENSIDE_CASTLING = new Uint8Array([2, 8]);
 
-const KINGSIDE_CASTLING_BIT = 0x01;
-const QUEENSIDE_CASTLING_BIT = 0x02;
-const CAPTURE_BIT = 0x04;
-const PAWN_MOVE_BIT = 0x08;
-const PAWN_SPECIAL_BIT = 0x10;
-const PROMOTION_MASK = 0xE0;
-const PAWN_MOVE_OR_CAPTURE_MASK = PAWN_MOVE_BIT + CAPTURE_BIT;
-const KINGSIDE_CASTLING = new Uint8Array([KINGSIDE_CASTLING_BIT, KINGSIDE_CASTLING_BIT << 2]);
-const QUEENSIDE_CASTLING = new Uint8Array([QUEENSIDE_CASTLING_BIT, QUEENSIDE_CASTLING_BIT << 2]);
+const RESET_PLY_CLOCK_FLAG = 0x80;
+const CAPTURE_FLAG = 0x40;
+const SPECIAL_MOVE_MASK = 0x3F;
+const PAWN_PUSH_2_SQUARES_FLAG = 0x20;
+const EN_PASSANT_CAPTURE_FLAG = 0x10;
+const CASTLING_MOVE_FLAG = 0x08;
+const PROMOTION_MASK = 0x07;
 
-const MF_PAWN_PUSH_1_SQUARE = PAWN_MOVE_BIT;
-const MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_QUEEN = PAWN_MOVE_BIT + (QUEEN << 5);
-const MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_ROOK = PAWN_MOVE_BIT + (ROOK << 5);
-const MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_BISHOP = PAWN_MOVE_BIT + (BISHOP << 5);
-const MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_KNIGHT = PAWN_MOVE_BIT + (KNIGHT << 5);
-const MF_PAWN_PUSH_2_SQUARES = PAWN_MOVE_BIT + PAWN_SPECIAL_BIT;
-const MF_PAWN_CAPTURE = PAWN_MOVE_BIT + CAPTURE_BIT;
-const MF_PAWN_CAPTURE_AND_PROMOTE_TO_QUEEN = PAWN_MOVE_BIT + CAPTURE_BIT + (QUEEN << 5);
-const MF_PAWN_CAPTURE_AND_PROMOTE_TO_ROOK = PAWN_MOVE_BIT + CAPTURE_BIT + (ROOK << 5);
-const MF_PAWN_CAPTURE_AND_PROMOTE_TO_BISHOP = PAWN_MOVE_BIT + CAPTURE_BIT + (BISHOP << 5);
-const MF_PAWN_CAPTURE_AND_PROMOTE_TO_KNIGHT = PAWN_MOVE_BIT + CAPTURE_BIT + (KNIGHT << 5);
-const MF_PAWN_CAPTURE_EN_PASSANT = PAWN_MOVE_BIT + CAPTURE_BIT + PAWN_SPECIAL_BIT;
+const MF_PAWN_PUSH_1_SQUARE = RESET_PLY_CLOCK_FLAG;
+const MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_QUEEN = RESET_PLY_CLOCK_FLAG + QUEEN;
+const MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_ROOK = RESET_PLY_CLOCK_FLAG + ROOK;
+const MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_BISHOP = RESET_PLY_CLOCK_FLAG + BISHOP;
+const MF_PAWN_PUSH_1_SQUARE_AND_PROMOTE_TO_KNIGHT = RESET_PLY_CLOCK_FLAG + KNIGHT;
+const MF_PAWN_PUSH_2_SQUARES = RESET_PLY_CLOCK_FLAG + PAWN_PUSH_2_SQUARES_FLAG;
+const MF_PAWN_CAPTURE = RESET_PLY_CLOCK_FLAG + CAPTURE_FLAG;
+const MF_PAWN_CAPTURE_AND_PROMOTE_TO_QUEEN = RESET_PLY_CLOCK_FLAG + CAPTURE_FLAG + QUEEN;
+const MF_PAWN_CAPTURE_AND_PROMOTE_TO_ROOK = RESET_PLY_CLOCK_FLAG + CAPTURE_FLAG + ROOK;
+const MF_PAWN_CAPTURE_AND_PROMOTE_TO_BISHOP = RESET_PLY_CLOCK_FLAG + CAPTURE_FLAG + BISHOP;
+const MF_PAWN_CAPTURE_AND_PROMOTE_TO_KNIGHT = RESET_PLY_CLOCK_FLAG + CAPTURE_FLAG + KNIGHT;
+const MF_PAWN_CAPTURE_EN_PASSANT = RESET_PLY_CLOCK_FLAG + EN_PASSANT_CAPTURE_FLAG;
 const MF_PIECE_NORMAL_MOVE = 0;
-const MF_PIECE_CAPTURE_MOVE = CAPTURE_BIT;
-const MF_KINGSIDE_CASTLING = KINGSIDE_CASTLING_BIT;
-const MF_QUEENSIDE_CASTLING = QUEENSIDE_CASTLING_BIT;
+const MF_PIECE_CAPTURE_MOVE = RESET_PLY_CLOCK_FLAG + CAPTURE_FLAG;
+const MF_KINGSIDE_CASTLING = CASTLING_MOVE_FLAG;
+const MF_QUEENSIDE_CASTLING = CASTLING_MOVE_FLAG;
 
 const PIECE_TYPE_TO_CHAR = new Map([
     [PAWN, 'p'], [KNIGHT, 'n'], [BISHOP, 'b'], [ROOK, 'r'], [QUEEN, 'q'], [KING, 'k']
@@ -176,7 +177,7 @@ function makePiece(color: number, pieceType: number) {
 }
 
 function getPieceColor(piece: number) {
-    return (piece & PIECE_COLOR_MASK) >> 3;
+    return piece >> 3;
 }
 
 function getPieceType(piece: number) {
@@ -422,35 +423,24 @@ function makeMove(move: number): void {
     let fromSquare = (move >> 8) & 0xFF;
     let toSquare = (move >> 16) & 0xFF;
 
-    if (move & PAWN_MOVE_OR_CAPTURE_MASK) {
-        PLY_CLOCK = 0;
-    }
+    if (move & RESET_PLY_CLOCK_FLAG) PLY_CLOCK = 0;
 
-    if (move & CAPTURE_BIT) {
-        if (move & PAWN_SPECIAL_BIT) {
-            removePiece((fromSquare & RANK_MASK) + (toSquare & FILE_MASK));
-        } else {
-            removePiece(toSquare);
-        }
-    } else {
-        if (move & PAWN_SPECIAL_BIT) {
+    if (move & SPECIAL_MOVE_MASK) {
+        if (move & PAWN_PUSH_2_SQUARES_FLAG) {
             EN_PASSANT_SQUARE = (fromSquare + toSquare) / 2;
+        } else if (move & PROMOTION_MASK) {
+            removePiece(fromSquare);
+            let promotedPiece = makePiece(ACTIVE_COLOR, (move & PROMOTION_MASK));
+            addPiece(promotedPiece, fromSquare);
+        } else if (move & CASTLING_MOVE_FLAG) {
+            ((toSquare & FILE_MASK) == FILE_G) ? movePiece(toSquare + RIGHT, toSquare + LEFT) : movePiece(toSquare + LEFT + LEFT, toSquare + RIGHT);
+        } else {
+            removePiece((fromSquare & RANK_MASK) + (toSquare & FILE_MASK));
         }
     }
 
-    if (move & PROMOTION_MASK) {
-        removePiece(fromSquare);
-        let promotedPiece = makePiece(ACTIVE_COLOR, (move & PROMOTION_MASK) >> 5);
-        addPiece(promotedPiece, toSquare);
-    } else {
-        movePiece(fromSquare, toSquare);
-    }
-
-    if (move & KINGSIDE_CASTLING_BIT) {
-        movePiece(toSquare + RIGHT, toSquare + LEFT);
-    } else if (move & QUEENSIDE_CASTLING_BIT) {
-        movePiece(toSquare + LEFT + LEFT, toSquare + RIGHT);
-    }
+    if (move & CAPTURE_FLAG) removePiece(toSquare);
+    movePiece(fromSquare, toSquare);
 
     CASTLING_RIGHTS &= UPDATE_CASTLING_RIGHTS[fromSquare];
     CASTLING_RIGHTS &= UPDATE_CASTLING_RIGHTS[toSquare];
@@ -464,25 +454,20 @@ function takeback(move: number): void {
     let fromSquare = (move >> 8) & 0xFF;
     let toSquare = (move >> 16) & 0xFF;
 
-    if (move & PROMOTION_MASK) {
-        removePiece(toSquare);
-        addPiece(makePiece(ACTIVE_COLOR, PAWN), fromSquare);
-    } else {
-        movePiece(toSquare, fromSquare);
-    }
+    movePiece(toSquare, fromSquare);
+    if (move & CAPTURE_FLAG) addPiece((move >> 24) & 0x0F, toSquare);
 
-    if (move & CAPTURE_BIT) {
-        if (move & PAWN_SPECIAL_BIT) {
-            addPiece(makePiece(1 - ACTIVE_COLOR, PAWN), (fromSquare & RANK_MASK) + (toSquare & FILE_MASK));
+    if (move & SPECIAL_MOVE_MASK) {
+        if (move & PAWN_PUSH_2_SQUARES_FLAG) {
+            // Nothing to takeback
+        } else if (move & PROMOTION_MASK) {
+            removePiece(fromSquare);
+            addPiece(makePiece(ACTIVE_COLOR, PAWN), fromSquare);
+        } else if (move & CASTLING_MOVE_FLAG) {
+            ((toSquare & FILE_MASK) == FILE_G) ? movePiece(toSquare + LEFT, toSquare + RIGHT) : movePiece(toSquare + RIGHT, toSquare + LEFT + LEFT);
         } else {
-            addPiece((move >> 24) & 0x0F, toSquare);
+            addPiece(makePiece(1 - ACTIVE_COLOR, PAWN), (fromSquare & RANK_MASK) + (toSquare & FILE_MASK));
         }
-    }
-
-    if (move & KINGSIDE_CASTLING_BIT) {
-        movePiece(toSquare + LEFT, toSquare + RIGHT);
-    } else if (move & QUEENSIDE_CASTLING_BIT) {
-        movePiece(toSquare + RIGHT, toSquare + LEFT + LEFT);
     }
 }
 
@@ -614,8 +599,8 @@ function bench() {
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-//bench();
+bench();
 //testPerft();
 
-initBoard('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1');
-divide(5);
+//initBoard('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1');
+//divide(5);
