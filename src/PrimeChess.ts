@@ -798,9 +798,7 @@ function alphaBeta(alpha: number, beta: number, depth: number): number {
 
 function toMoveString(move: number) {
     let moveString = toSquareCoordinates(getFromSquare(move)) + toSquareCoordinates(getToSquare(move));
-    if (move & PROMOTION_MASK) {
-        moveString += PIECE_TYPE_TO_CHAR.get((move & PROMOTION_MASK) >> 5);
-    }
+    if (move & PROMOTION_MASK) moveString += PIECE_TYPE_TO_CHAR.get(move & PROMOTION_MASK);
     return moveString;
 }
 
