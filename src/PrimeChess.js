@@ -1,46 +1,3 @@
-//
-//    +-----------------------------------------------+
-//    |           0x88 BOARD REPRESENTATION           |
-//    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//  8 |00|01|02|03|04|05|06|07|08|09|0A|0B|0C|0D|0E|0F|
-//  7 |10|11|12|13|14|15|16|17|18|19|1A|1B|1C|1D|1E|1F|
-//  6 |20|21|22|23|24|25|26|27|28|29|2A|2B|2C|2D|2E|2F|
-//  5 |30|31|32|33|34|35|36|37|38|39|3A|3B|3C|3D|3E|3F|
-//  4 |40|41|42|43|44|45|46|47|48|49|4A|4B|4C|4D|4E|4F|
-//  3 |50|51|52|53|54|55|56|57|58|59|5A|5B|5C|5D|5E|5F|
-//  2 |60|61|62|63|64|65|66|67|68|69|6A|6B|6C|6D|6E|6F|
-//  1 |70|71|72|73|74|75|76|77|78|79|7A|7B|7C|7D|7E|7F|
-//    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//      A  B  C  D  E  F  G  H
-//
-//  +---------------------------------+   +----------------------------------------+
-//  |          PIECE ENCODING         |   |             MOVE FLAGS                 |
-//  +-----+-----+------+--------------+   +-----------+------+---------------------+
-//  | DEC | HEX | BIN  | DESCRIPTION  |   | BINARY    | HEX  | DESCRIPTION         |
-//  +-----+-----+------+--------------+   +-----------+------+---------------------+
-//  |   0 |   0 | 0000 | NONE         |   | 0000 0111 | 0x07 | PROMOTED PIECE      |
-//  |   1 |   1 | 0001 | WHITE PAWN   |   | 0000 1000 | 0x08 | CASTLING FLAG       |
-//  |   2 |   2 | 0010 | WHITE KING   |   | 0001 0000 | 0x10 | EN PASSANT CAPTURE  |
-//  |   3 |   3 | 0011 | WHITE KNIGHT |   | 0010 0000 | 0x20 | PAWN PUSH 2 SQUARES |
-//  |   4 |   4 | 0100 | WHITE BISHOP |   | 0100 0000 | 0x40 | CAPTURE MOVE        |
-//  |   5 |   5 | 0101 | WHITE ROOK   |   | 1000 0000 | 0x80 | RESET PLY CLOCK     |
-//  |   6 |   6 | 0110 | WHITE QUEEN  |   +-----------+------+---------------------+
-//  |   7 |   7 | 0111 |              |
-//  |   8 |   8 | 1000 |              |
-//  |   9 |   9 | 1001 | BLACK KING   |
-//  |  10 |   A | 1010 | BLACK PAWN   |
-//  |  11 |   B | 1011 | BLACK KNIGHT |
-//  |  12 |   C | 1100 | BLACK BISHOP |
-//  |  13 |   D | 1101 | BLACK ROOK   |
-//  |  14 |   E | 1110 | BLACK QUEEN  |
-//  |  15 |   F | 1111 |              |
-//  +-----+-----+------+--------------+
-//  | PIECE_COLOR_MASK  = 1000 = 0x08 |
-//  | PIECE_TYPE_MASK   = 0111 = 0x07 |
-//  | PIECE_SLIDER_MASK = 0100 = 0x04 |
-//  +---------------------------------+
-//
-
 ////////////////////////////////////////////////////////////////
 //  CONSTANTS                                                 //
 ////////////////////////////////////////////////////////////////
@@ -235,11 +192,17 @@ let CASTLING_RIGHTS = NULL;
 let FIFTY_MOVES_CLOCK = 0;
 let GAME_PLY = 0;
 let SEARCH_PLY = 0;
-
+let MAX_SEARCH_PLY = 64;
 let NODE_COUNT = 0;
 let SEARCH_DEPTH = 0;
-let REPETITION_TABLE: number[] = [];
-let PV_TABLE: number[] = [];
+
+let REPETITION_TABLE = [];
+let POSITION_HASH_KEY = 0;
+let HASH_KEYS = new Uint32Array(16 * 128);
+let COLOR_HASH_KEY = 0;
+
+let PV_TABLE = new Int32Array(MAX_SEARCH_PLY * MAX_SEARCH_PLY);
+let PV_LENGTH = new Uint8Array(MAX_SEARCH_PLY);
 let FOLLOW_PV = false;
 
 let TIME_LIMIT = Number.MAX_SAFE_INTEGER;
@@ -248,18 +211,14 @@ let NODE_LIMIT = Number.MAX_SAFE_INTEGER;
 let STOP_SEARCH = false;
 let SEARCH_STARTING_TIME = Date.now();
 
-let POSITION_HASH_KEY = 0;
-let HASH_KEYS = new Uint32Array(16 * 128);
-let COLOR_HASH_KEY = 0;
-
 ////////////////////////////////////////////////////////////////
 //  FUNCTIONS                                                 //
 ////////////////////////////////////////////////////////////////
 
-let random = 2463534242;
+let random = 1;
 function nextRandom() {
     random ^= (random << 13);
-    random ^= (random >> 17);
+    random ^= (random >>> 17);
     random ^= (random << 5);
     return random;
 }
@@ -269,19 +228,19 @@ function initRandomKeys() {
     COLOR_HASH_KEY = nextRandom();
 }
 
-function makePiece(color: number, pieceType: number) {
+function makePiece(color, pieceType) {
     return pieceType | (color << 3);
 }
 
-function getPieceColor(piece: number) {
+function getPieceColor(piece) {
     return piece >> 3;
 }
 
-function getPieceType(piece: number) {
+function getPieceType(piece) {
     return (piece & PIECE_TYPE_MASK);
 }
 
-function movePiece(fromSquare: number, toSquare: number) {
+function movePiece(fromSquare, toSquare) {
     let piece = BOARD[fromSquare];
     BOARD[fromSquare] = NULL;
     BOARD[toSquare] = piece;
@@ -291,7 +250,7 @@ function movePiece(fromSquare: number, toSquare: number) {
     BOARD[toSquare + 8] = index;
 }
 
-function addPiece(piece: number, square: number) {
+function addPiece(piece, square) {
     BOARD[square] = piece;
 
     let index = 10 * piece + PIECE_COUNT[piece]++;
@@ -299,7 +258,7 @@ function addPiece(piece: number, square: number) {
     BOARD[square + 8] = index; 
 }
 
-function removePiece(square: number) {
+function removePiece(square) {
     let piece = BOARD[square];
     BOARD[square] = NULL;
 
@@ -309,42 +268,42 @@ function removePiece(square: number) {
     BOARD[PIECE_LIST[lastIndex] + 8] = index;
 }
 
-function parseSquare(squareCoordinates: string): number {
+function parseSquare(squareCoordinates) {
     return (squareCoordinates.charCodeAt(0) - 'a'.charCodeAt(0))
     - 16 * (squareCoordinates.charCodeAt(1) - '8'.charCodeAt(0));
 }
 
-function toSquareCoordinates(square: number) {
+function toSquareCoordinates(square) {
     let file = String.fromCharCode('a'.charCodeAt(0) + (square & FILE_MASK));
     let rank = 8 - ((square & RANK_MASK) >> 4);
     return file + rank;
 }
 
-function createMove(moveFlags: number, fromSquare: number, toSquare: number, fromPiece: number, toPiece: number): number {
+function createMove(moveFlags, fromSquare, toSquare, fromPiece, toPiece) {
     return moveFlags | (fromSquare << 8) | (toSquare << 16) | (fromPiece << 24) | (toPiece << 28);
 }
 
-function getFromSquare(move: number) {
+function getFromSquare(move) {
     return (move >> 8) & 0xFF;
 }
 
-function getToSquare(move: number) {
+function getToSquare(move) {
     return (move >> 16) & 0xFF;
 }
 
-function getFromPiece(move: number) {
+function getFromPiece(move) {
     return (move >> 24) & 0x0F;
 }
 
-function getToPiece(move: number) {
+function getToPiece(move) {
     return (move >> 28) & 0x0F;
 }
 
-function createGlobalState(): number {
+function createGlobalState() {
     return EN_PASSANT_SQUARE | (CASTLING_RIGHTS << 8) | (FIFTY_MOVES_CLOCK << 12);
 }
 
-function restoreGlobalState(state: number) {
+function restoreGlobalState(state) {
     EN_PASSANT_SQUARE = state & 0xFF;
     CASTLING_RIGHTS = (state >> 8) & 0x0F;
     FIFTY_MOVES_CLOCK = (state >> 12) & 0xFF;
@@ -358,7 +317,7 @@ function isRepetition() {
     return false;
 }
 
-function initBoard(fen: string = STARTING_FEN) {
+function initBoard(fen = STARTING_FEN) {
     let fenParts = fen.split(' ');
     BOARD.fill(NULL);
     PIECE_COUNT.fill(NULL);
@@ -367,16 +326,16 @@ function initBoard(fen: string = STARTING_FEN) {
     REPETITION_TABLE = [];
 
     let fenBoard = fenParts[0];
-    let index = 0;
+    let square = 0;
     for (let c of fenBoard) {
         if (c == '/') {
-            index += 8;
+            square += 8;
         } else if (isNaN(parseInt(c, 10))) {
-            let piece = FEN_CHAR_TO_PIECE_CODE.get(c)!;
-            addPiece(piece, index);
-            index += 1;
+            let piece = FEN_CHAR_TO_PIECE_CODE.get(c);
+            addPiece(piece, square);
+            square += 1;
         } else {
-            index += parseInt(c, 10);
+            square += parseInt(c, 10);
         }
     }
 
@@ -402,7 +361,7 @@ function initBoard(fen: string = STARTING_FEN) {
     GAME_PLY = 2 * (parseInt(fenFullMoveCount, 10) - 1) + ACTIVE_COLOR;
 }
 
-function isSquareAttacked(square: number, color: number): boolean {
+function isSquareAttacked(square, color) {
     let coloredQueen = makePiece(color, QUEEN);
     let coloredRook = makePiece(color, ROOK);
     let coloredBishop = makePiece(color, BISHOP);
@@ -453,8 +412,8 @@ function isSquareAttacked(square: number, color: number): boolean {
     return false;
 }
 
-function generateMoves(captureOnly: boolean = false): number[] {
-    let moveList: number[] = [];
+function generateMoves(captureOnly = false) {
+    let moveList = [];
     let fromSquare, fromPiece;
     let toSquare, toPiece;
     let direction = UP * (1 - 2 * ACTIVE_COLOR);
@@ -563,7 +522,7 @@ function generateMoves(captureOnly: boolean = false): number[] {
     return moveList;
 }
 
-function makeMove(move: number): void {
+function makeMove(move) {
     REPETITION_TABLE[GAME_PLY] = POSITION_HASH_KEY;
     POSITION_HASH_KEY ^= HASH_KEYS[EN_PASSANT_SQUARE];
     POSITION_HASH_KEY ^= HASH_KEYS[CASTLING_RIGHTS];
@@ -624,7 +583,7 @@ function makeMove(move: number): void {
     POSITION_HASH_KEY ^= COLOR_HASH_KEY;
 }
 
-function takeback(move: number): void {
+function takeback(move) {
     GAME_PLY--;
     SEARCH_PLY--;
 
@@ -650,101 +609,90 @@ function takeback(move: number): void {
     }
 }
 
-function savePrincipalVariation(move: number, depth: number) {
-    let index = (SEARCH_DEPTH - depth) * (SEARCH_DEPTH + 1);
-    PV_TABLE[index] = move;
-    for (let p = 1; p <= depth; p++) {
-        PV_TABLE[index + p] = PV_TABLE[index + p + SEARCH_DEPTH];
-    }
-}
-
-function cleanPrincipalVariation(depth: number) {
-    let index = (SEARCH_DEPTH - depth) * (SEARCH_DEPTH + 1);
-    for (let p = 0; p < depth; p++) {
-        PV_TABLE[index + p] = NULL;
-    }
-}
-
 function checkStopConditions() {
     if ((Date.now() - SEARCH_STARTING_TIME > TIME_LIMIT) || (NODE_COUNT + 2048 > NODE_LIMIT)) {
         STOP_SEARCH = true;
     }
 }
 
-function evaluateColor(color: number): number[] {
-    let phase = 0, scoreMG = 0, scoreEG = 0;
-    for (let pieceType = PAWN; pieceType <= QUEEN; pieceType++) {
-        let piece = makePiece(color, pieceType);
-        let pieceCount = PIECE_COUNT[piece];
-        if (pieceType >= KNIGHT) phase += pieceCount * PIECE_VALUE_MG[pieceType];
-        scoreMG += pieceCount * PIECE_VALUE_MG[pieceType];
-        scoreEG += pieceCount * PIECE_VALUE_EG[pieceType];
-        for (let p = 0; p < pieceCount; p++) {
-            let square = PIECE_LIST[10 * piece + p];
-            let pstIndex = (pieceType - 1) * 128 + square ^ (color * 0x70);
-            scoreMG += PIECE_SQUARE_TABLES[pstIndex];
-            scoreEG += PIECE_SQUARE_TABLES[pstIndex + 8];
-        }
-    }
-    return [phase, scoreMG, scoreEG];
-}
-
-function evaluate(): number {
+function evaluate() {
     NODE_COUNT++;
     if ((NODE_COUNT & 2047) == 0) checkStopConditions();
 
-    let [phaseA, scoreMGA, scoreEGA] = evaluateColor(ACTIVE_COLOR);
-    let [phaseB, scoreMGB, scoreEGB] = evaluateColor(1 - ACTIVE_COLOR);
-    let phase = Math.max(PHASE_VALUE_MIN, Math.min(PHASE_VALUE_MAX, phaseA + phaseB));
-    let scoreMG = scoreMGA - scoreMGB;
-    let scoreEG = scoreEGA - scoreEGB;
+    let phase = 0, scoreMG = 0, scoreEG = 0;
+    for (let color = WHITE; color <= BLACK; color++) {
+        let sign = (ACTIVE_COLOR == color) ? 1 : -1;
+        for (let pieceType = PAWN; pieceType <= QUEEN; pieceType++) {
+            let piece = makePiece(color, pieceType);
+            let pieceCount = PIECE_COUNT[piece];
+            if (pieceType >= KNIGHT) phase += pieceCount * PIECE_VALUE_MG[pieceType];
+            scoreMG += sign * pieceCount * PIECE_VALUE_MG[pieceType];
+            scoreEG += sign * pieceCount * PIECE_VALUE_EG[pieceType];
+            for (let p = 0; p < pieceCount; p++) {
+                let square = PIECE_LIST[10 * piece + p];
+                let pstIndex = (pieceType - 1) * 128 + square ^ (color * 0x70);
+                scoreMG += sign * PIECE_SQUARE_TABLES[pstIndex];
+                scoreEG += sign * PIECE_SQUARE_TABLES[pstIndex + 8];
+            }
+        }
+    }
+
+    phase = Math.max(PHASE_VALUE_MIN, Math.min(PHASE_VALUE_MAX, phase));
     return ((scoreMG * (phase - PHASE_VALUE_MIN) + scoreEG * (PHASE_VALUE_MAX - phase)) / PHASE_RANGE) | 0;
 }
 
-function sortMoveList(moveList: number[]) {
-    let move, capturedPiece, j = 0;
-    for (let i = 1; i < moveList.length; i++) {
-        move = moveList[i];
-        capturedPiece = getToPiece(move);
-        j = i - 1;
-        while (j >= 0 && getToPiece(moveList[j]) < capturedPiece) {
-            moveList[j + 1] = moveList[j];
-            j = j - 1;
+function savePV(move) {
+    let index = SEARCH_PLY * MAX_SEARCH_PLY + SEARCH_PLY;
+    PV_TABLE[index] = move;
+    for (let p = 1; p <= PV_LENGTH[SEARCH_PLY + 1]; p++) {
+        PV_TABLE[index + p] = PV_TABLE[index + p + MAX_SEARCH_PLY];
+    }
+    PV_LENGTH[SEARCH_PLY] = PV_LENGTH[SEARCH_PLY + 1] + 1;
+}
+
+function cleanPV() {
+    PV_LENGTH[SEARCH_PLY] = 0;
+}
+
+function pickNextMove(moveList, i) {
+    let nextMove;
+    if (FOLLOW_PV) { // Following PV from previous search
+        nextMove = PV_TABLE[SEARCH_PLY];
+        let pvIndex = 0;
+        while (moveList[pvIndex] != nextMove) pvIndex++;
+        moveList[pvIndex] = moveList[i];
+        moveList[i] = nextMove;
+        if (SEARCH_PLY == (PV_LENGTH[0] - 1)) FOLLOW_PV = false;
+    } else { // Playing the next MVV capture
+        let mvvIndex = i;
+        for (let j = i + 1; j < moveList.length; j++) {
+            if (getToPiece(moveList[mvvIndex]) < getToPiece(moveList[j])) mvvIndex = j;
         }
-        moveList[j + 1] = move;
+        nextMove = moveList[mvvIndex];
+        moveList[mvvIndex] = moveList[i];
+        moveList[i] = nextMove;
     }
-    return moveList;
+    return nextMove;
 }
 
-function sortPVMove(moveList: number[], depth: number) {
-    let pvMove = PV_TABLE[SEARCH_DEPTH - depth];
-    if (depth <= 1 || pvMove == NULL) {
-        FOLLOW_PV = false;
-        return;
-    }
-    let i = 0;
-    while (moveList[i] != pvMove) i++;
-    while (i--) moveList[i + 1] = moveList[i];
-    moveList[0] = pvMove;
-}
-
-function quiesce(alpha: number, beta: number): number {
+function quiesce(alpha, beta) {
     let score = evaluate();
     if (score >= beta) return beta;
     if (score > alpha) alpha = score;
     if (STOP_SEARCH) return alpha;
 
     let state = createGlobalState();
-    let moveList = sortMoveList(generateMoves(true));
+    let moveList = generateMoves(true);
     for (let m = 0; m < moveList.length; m++) {
-        makeMove(moveList[m]);
+        let move = pickNextMove(moveList, m);
+        makeMove(move);
         if (isSquareAttacked(PIECE_LIST[10 * makePiece(1 - ACTIVE_COLOR, KING)], ACTIVE_COLOR)) {
-            takeback(moveList[m]);
+            takeback(move);
             restoreGlobalState(state);
             continue;
         }
         score = -quiesce(-beta, -alpha);
-        takeback(moveList[m]);
+        takeback(move);
         restoreGlobalState(state);
 
         if (score >= beta) return beta;
@@ -755,54 +703,50 @@ function quiesce(alpha: number, beta: number): number {
     return alpha;
 }
 
-function alphaBeta(alpha: number, beta: number, depth: number): number {
+function alphaBeta(alpha, beta, depth) {
+    if (SEARCH_PLY > 0 && (isRepetition() || FIFTY_MOVES_CLOCK >= 100)) return DRAW_VALUE;
     if (depth == 0) return quiesce(alpha, beta);
 
+    let score = -INFINITY;
     let legalMoveCount = 0;
     let state = createGlobalState();
-    let moveList = sortMoveList(generateMoves());
+    let moveList = generateMoves();
     for (let m = 0; m < moveList.length; m++) {
-        if (FOLLOW_PV) sortPVMove(moveList, depth);
-
-        makeMove(moveList[m]);
+        let move = pickNextMove(moveList, m);
+        makeMove(move);
         if (isSquareAttacked(PIECE_LIST[10 * makePiece(1 - ACTIVE_COLOR, KING)], ACTIVE_COLOR)) {
-            takeback(moveList[m]);
+            takeback(move);
             restoreGlobalState(state);
             continue;
         }
         legalMoveCount++;
-        let score = -alphaBeta(-beta, -alpha, depth - 1);
-        if (isRepetition() || FIFTY_MOVES_CLOCK >= 100) score = DRAW_VALUE;
-        takeback(moveList[m]);
+        score = -alphaBeta(-beta, -alpha, depth - 1);
+        takeback(move);
         restoreGlobalState(state);
 
         if (score >= beta) return beta;
         if (score > alpha) {
             alpha = score;
-            savePrincipalVariation(moveList[m], depth);
+            savePV(move);
         }
         if (STOP_SEARCH) return alpha;
     }
 
     if (legalMoveCount == 0) {
-        cleanPrincipalVariation(depth);
-        if (isSquareAttacked(PIECE_LIST[10 * makePiece(ACTIVE_COLOR, KING)], 1 - ACTIVE_COLOR)) {
-            return -MATE_VALUE - depth;
-        } else {
-            return DRAW_VALUE;
-        }
+        cleanPV();
+        return isSquareAttacked(PIECE_LIST[10 * makePiece(ACTIVE_COLOR, KING)], 1 - ACTIVE_COLOR) ? -MATE_VALUE - depth : DRAW_VALUE;
     }
 
     return alpha;
 }
 
-function toMoveString(move: number) {
+function toMoveString(move) {
     let moveString = toSquareCoordinates(getFromSquare(move)) + toSquareCoordinates(getToSquare(move));
     if (move & PROMOTION_MASK) moveString += PIECE_TYPE_TO_CHAR.get(move & PROMOTION_MASK);
     return moveString;
 }
 
-function uciWriteInfoString(score: number, elapsedTime: number) {
+function uciWriteInfoString(score, elapsedTime) {
     let infoString = 'info depth ' + SEARCH_DEPTH;
     if (Math.abs(score) >= MATE_VALUE) {
         let mate = Math.sign(score) * Math.ceil((MATE_VALUE + SEARCH_DEPTH - Math.abs(score)) / 2);
@@ -811,24 +755,24 @@ function uciWriteInfoString(score: number, elapsedTime: number) {
         infoString += ' score cp ' + score;
     }
     infoString += ' time ' + elapsedTime + ' nodes ' + NODE_COUNT + ' nps ' + Math.round(1000 * NODE_COUNT / elapsedTime) + ' pv';
-    for (let i = 0; i < SEARCH_DEPTH; i++) {
-        if (PV_TABLE[i] != NULL) infoString += ' ' + toMoveString(PV_TABLE[i]);
+    for (let i = 0; i < PV_LENGTH[0]; i++) {
+        infoString += ' ' + toMoveString(PV_TABLE[i]);
     }
     console.log(infoString);
-}
-
-function uciWriteBestMove(move: number) {
-    console.log('bestmove ' + toMoveString(move));
 }
 
 function search() {
     NODE_COUNT = 0;
     SEARCH_DEPTH = 0;
     SEARCH_STARTING_TIME = Date.now();
+    PV_TABLE.fill(NULL);
+    PV_LENGTH.fill(0);
+    FOLLOW_PV = false;
 
     let score = 0, elapsedTime = 0, bestMove = 0;
     do {
         SEARCH_DEPTH++;
+        SEARCH_PLY = 0;
         score = alphaBeta(-INFINITY, +INFINITY, SEARCH_DEPTH);
         if (STOP_SEARCH) break;
         bestMove = PV_TABLE[0];
@@ -837,7 +781,7 @@ function search() {
         uciWriteInfoString(score, elapsedTime);
     } while ((SEARCH_DEPTH < DEPTH_LIMIT) && (elapsedTime < (TIME_LIMIT / 2)));
 
-    uciWriteBestMove(bestMove);
+    return toMoveString(bestMove);
 }
 
 ////////////////////////////////////////////////////////////////
@@ -854,7 +798,7 @@ function printBoard() {
     console.log(printableBoard);
 }
 
-function perft(depth: number): number {
+function perft(depth) {
     if (depth == 0) return 1;
     let nodes = 0;
     let state = createGlobalState();
@@ -874,7 +818,7 @@ function perft(depth: number): number {
 //  UCI INTEGRATION                                           //
 ////////////////////////////////////////////////////////////////
 
-function parseMove(move: string) {
+function parseMove(move) {
     let fromSquare = parseSquare(move.substring(0, 2));
     let toSquare = parseSquare(move.substring(2, 4));
     let fromPiece = BOARD[fromSquare];
@@ -891,7 +835,7 @@ function parseMove(move: string) {
                 moveFlags |= EN_PASSANT_CAPTURE_FLAG;
             }
             if (move.length > 4) {
-                let promotedPiece = FEN_CHAR_TO_PIECE_CODE.get(move.charAt(4))!;
+                let promotedPiece = FEN_CHAR_TO_PIECE_CODE.get(move.charAt(4));
                 moveFlags |= getPieceType(promotedPiece);
             }
             return createMove(moveFlags, fromSquare, toSquare, fromPiece, toPiece);
@@ -903,7 +847,7 @@ function parseMove(move: string) {
     }
 }
 
-function parseGoCommand(commandParts: string[]) {
+function parseGoCommand(commandParts) {
     TIME_LIMIT = Number.MAX_SAFE_INTEGER;
     DEPTH_LIMIT = Number.MAX_SAFE_INTEGER;
     NODE_LIMIT = Number.MAX_SAFE_INTEGER;
@@ -923,20 +867,17 @@ function parseGoCommand(commandParts: string[]) {
             break;
         default:
             let availableTime = (ACTIVE_COLOR == WHITE) ? commandParts.indexOf('wtime') : commandParts.indexOf('btime');
-            if (availableTime > 0) availableTime = parseInt(commandParts[availableTime + 1], 10);
+            availableTime = parseInt(commandParts[availableTime + 1], 10);
             let movesToGo = commandParts.indexOf('movestogo');
             movesToGo = (movesToGo > 0) ? Math.min(40, parseInt(commandParts[movesToGo + 1], 10)) : 40;
-            TIME_LIMIT = 1.4 * availableTime / (movesToGo + 0.4) - 10;
+            TIME_LIMIT = 1.4 * availableTime / (movesToGo + 0.4) - 20;
     }
 }
 
 function uci() {
-    const readLine = require('readline').createInterface({
-        input: process.stdin,
-        output: process.stdout
-    });
-
-    readLine.on('line', (command: string) => {
+    const readLine = require('readline');
+    const rl = readLine.createInterface({ input: process.stdin, output: process.stdout });
+    rl.on('line', (command) => {
         let commandParts = command.split(' ');
         switch (commandParts[0]) {
             case 'uci':
@@ -956,21 +897,17 @@ function uci() {
                 console.timeEnd('Time');
                 break;
             case 'position':
-                if (commandParts[1] == 'fen') {
-                    initBoard(command.split(' fen ')[1]);
-                } else {
-                    initBoard();
-                }
+                if (commandParts[1] == 'fen') initBoard(command.split(' fen ')[1]);
+                else initBoard();
                 if (command.includes(' moves ')) {
                     let moves = command.split(' moves ')[1].split(' ');
-                    for (let move of moves) {
-                        makeMove(parseMove(move));
-                    }
+                    for (let move of moves) makeMove(parseMove(move));
                 }
                 break;
             case 'go':
                 parseGoCommand(commandParts);
-                search();
+                let move = search();
+                console.log('bestmove ' + move);
                 break;
             case 'stop':
                 STOP_SEARCH = true;
@@ -988,4 +925,4 @@ function uci() {
 initRandomKeys();
 uci();
 
-export { initBoard, printBoard, perft, search };
+module.exports = { initBoard, printBoard, perft, search };
