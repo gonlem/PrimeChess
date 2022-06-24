@@ -303,15 +303,8 @@ function createGlobalState() {
     return EN_PASSANT_SQUARE | (CASTLING_RIGHTS << 8) | (FIFTY_MOVES_CLOCK << 12);
 }
 
-function restoreGlobalState(state) {
-    EN_PASSANT_SQUARE = state & 0xFF;
-    CASTLING_RIGHTS = (state >> 8) & 0x0F;
-    FIFTY_MOVES_CLOCK = (state >> 12) & 0xFF;
-    POSITION_HASH_KEY = REPETITION_TABLE[GAME_PLY];
-}
-
 function isRepetition() {
-    for (let i = 0; i < GAME_PLY; i++) {
+    for (let i = GAME_PLY - 2; i >= 0; i -= 2) {
         if (REPETITION_TABLE[i] == POSITION_HASH_KEY) return true;
     }
     return false;
@@ -522,7 +515,7 @@ function generateMoves(captureOnly = false) {
     return moveList;
 }
 
-function makeMove(move) {
+function makeMove(move, state) {
     REPETITION_TABLE[GAME_PLY] = POSITION_HASH_KEY;
     POSITION_HASH_KEY ^= HASH_KEYS[EN_PASSANT_SQUARE];
     POSITION_HASH_KEY ^= HASH_KEYS[CASTLING_RIGHTS];
@@ -581,9 +574,16 @@ function makeMove(move) {
         
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
     POSITION_HASH_KEY ^= COLOR_HASH_KEY;
+
+    if (isSquareAttacked(PIECE_LIST[10 * makePiece(1 - ACTIVE_COLOR, KING)], ACTIVE_COLOR)) {
+        takeback(move, state);
+        return false;
+    }
+
+    return true;
 }
 
-function takeback(move) {
+function takeback(move, state) {
     GAME_PLY--;
     SEARCH_PLY--;
 
@@ -607,6 +607,11 @@ function takeback(move) {
             addPiece(makePiece(1 - ACTIVE_COLOR, PAWN), (fromSquare & RANK_MASK) + (toSquare & FILE_MASK));
         }
     }
+
+    POSITION_HASH_KEY = REPETITION_TABLE[GAME_PLY];
+    EN_PASSANT_SQUARE = state & 0xFF;
+    CASTLING_RIGHTS = (state >> 8) & 0x0F;
+    FIFTY_MOVES_CLOCK = (state >> 12) & 0xFF;
 }
 
 function checkStopConditions() {
@@ -650,10 +655,6 @@ function savePV(move) {
     PV_LENGTH[SEARCH_PLY] = PV_LENGTH[SEARCH_PLY + 1] + 1;
 }
 
-function cleanPV() {
-    PV_LENGTH[SEARCH_PLY] = 0;
-}
-
 function pickNextMove(moveList, i) {
     let nextMove;
     if (FOLLOW_PV) { // Following PV from previous search
@@ -685,16 +686,10 @@ function quiesce(alpha, beta) {
     let moveList = generateMoves(true);
     for (let m = 0; m < moveList.length; m++) {
         let move = pickNextMove(moveList, m);
-        makeMove(move);
-        if (isSquareAttacked(PIECE_LIST[10 * makePiece(1 - ACTIVE_COLOR, KING)], ACTIVE_COLOR)) {
-            takeback(move);
-            restoreGlobalState(state);
-            continue;
-        }
+        if (!makeMove(move, state)) continue;
         score = -quiesce(-beta, -alpha);
-        takeback(move);
-        restoreGlobalState(state);
-
+        takeback(move, state);
+        
         if (score >= beta) return beta;
         if (score > alpha) alpha = score;
         if (STOP_SEARCH) return alpha;
@@ -703,8 +698,8 @@ function quiesce(alpha, beta) {
     return alpha;
 }
 
-function alphaBeta(alpha, beta, depth) {
-    if (SEARCH_PLY > 0 && (isRepetition() || FIFTY_MOVES_CLOCK >= 100)) return DRAW_VALUE;
+function negamax(alpha, beta, depth) {
+    if ((SEARCH_PLY > 0) && (isRepetition() || FIFTY_MOVES_CLOCK >= 100)) return DRAW_VALUE;
     if (depth == 0) return quiesce(alpha, beta);
 
     let score = -INFINITY;
@@ -713,17 +708,11 @@ function alphaBeta(alpha, beta, depth) {
     let moveList = generateMoves();
     for (let m = 0; m < moveList.length; m++) {
         let move = pickNextMove(moveList, m);
-        makeMove(move);
-        if (isSquareAttacked(PIECE_LIST[10 * makePiece(1 - ACTIVE_COLOR, KING)], ACTIVE_COLOR)) {
-            takeback(move);
-            restoreGlobalState(state);
-            continue;
-        }
+        if (!makeMove(move, state)) continue;
         legalMoveCount++;
-        score = -alphaBeta(-beta, -alpha, depth - 1);
-        takeback(move);
-        restoreGlobalState(state);
-
+        score = -negamax(-beta, -alpha, depth - 1);
+        takeback(move, state);
+        
         if (score >= beta) return beta;
         if (score > alpha) {
             alpha = score;
@@ -733,8 +722,8 @@ function alphaBeta(alpha, beta, depth) {
     }
 
     if (legalMoveCount == 0) {
-        cleanPV();
-        return isSquareAttacked(PIECE_LIST[10 * makePiece(ACTIVE_COLOR, KING)], 1 - ACTIVE_COLOR) ? -MATE_VALUE - depth : DRAW_VALUE;
+        PV_LENGTH[SEARCH_PLY] = 0;
+        return isSquareAttacked(PIECE_LIST[10 * makePiece(ACTIVE_COLOR, KING)], 1 - ACTIVE_COLOR) ? -(MATE_VALUE + SEARCH_PLY) : DRAW_VALUE;
     }
 
     return alpha;
@@ -748,38 +737,31 @@ function toMoveString(move) {
 
 function uciWriteInfoString(score, elapsedTime) {
     let infoString = 'info depth ' + SEARCH_DEPTH;
-    if (Math.abs(score) >= MATE_VALUE) {
-        let mate = Math.sign(score) * Math.ceil((MATE_VALUE + SEARCH_DEPTH - Math.abs(score)) / 2);
-        infoString += ' score mate ' + mate;
-    } else {
-        infoString += ' score cp ' + score;
-    }
+    if (Math.abs(score) < MATE_VALUE) infoString += ' score cp ' + score;
+    else infoString += ' score mate ' + Math.sign(score) * Math.ceil((Math.abs(score) - MATE_VALUE) / 2);
     infoString += ' time ' + elapsedTime + ' nodes ' + NODE_COUNT + ' nps ' + Math.round(1000 * NODE_COUNT / elapsedTime) + ' pv';
-    for (let i = 0; i < PV_LENGTH[0]; i++) {
-        infoString += ' ' + toMoveString(PV_TABLE[i]);
-    }
+    for (let i = 0; i < PV_LENGTH[0]; i++) infoString += ' ' + toMoveString(PV_TABLE[i]);
     console.log(infoString);
 }
 
 function search() {
     NODE_COUNT = 0;
-    SEARCH_DEPTH = 0;
+    SEARCH_DEPTH = 1;
+    STOP_SEARCH = false;
     SEARCH_STARTING_TIME = Date.now();
-    PV_TABLE.fill(NULL);
     PV_LENGTH.fill(0);
-    FOLLOW_PV = false;
 
     let score = 0, elapsedTime = 0, bestMove = 0;
     do {
-        SEARCH_DEPTH++;
         SEARCH_PLY = 0;
-        score = alphaBeta(-INFINITY, +INFINITY, SEARCH_DEPTH);
+        FOLLOW_PV = (SEARCH_DEPTH > 1) ? true : false;
+        score = negamax(-INFINITY, +INFINITY, SEARCH_DEPTH);
         if (STOP_SEARCH) break;
         bestMove = PV_TABLE[0];
-        FOLLOW_PV = true;
         elapsedTime = Math.max(1, Date.now() - SEARCH_STARTING_TIME);
         uciWriteInfoString(score, elapsedTime);
-    } while ((SEARCH_DEPTH < DEPTH_LIMIT) && (elapsedTime < (TIME_LIMIT / 2)));
+        SEARCH_DEPTH++;
+    } while ((SEARCH_DEPTH <= DEPTH_LIMIT) && (elapsedTime < (TIME_LIMIT / 2)));
 
     return toMoveString(bestMove);
 }
@@ -804,12 +786,9 @@ function perft(depth) {
     let state = createGlobalState();
     let moveList = generateMoves();
     for (let m = 0; m < moveList.length; m++) {
-        makeMove(moveList[m]);
-        if (!isSquareAttacked(PIECE_LIST[10 * makePiece(1 - ACTIVE_COLOR, KING)], ACTIVE_COLOR)) {
-            nodes += perft(depth - 1);
-        }
-        takeback(moveList[m]);
-        restoreGlobalState(state);
+        if (!makeMove(moveList[m], state)) continue;
+        nodes += perft(depth - 1);
+        takeback(moveList[m], state);
     }
     return nodes;
 }
@@ -825,19 +804,13 @@ function parseMove(move) {
     let toPiece = BOARD[toSquare];
     let moveFlags = 0;
     if (toPiece != NULL) moveFlags |= (CAPTURE_FLAG | RESET_FIFTY_MOVES_CLOCK_FLAG);
-
     switch (getPieceType(fromPiece)) {
         case PAWN:
             moveFlags |= RESET_FIFTY_MOVES_CLOCK_FLAG;
             let moveDistance = Math.abs(fromSquare - toSquare);
             if (moveDistance == 32) moveFlags |= PAWN_PUSH_2_SQUARES_FLAG;
-            if ((moveDistance == 15 || moveDistance == 17) && toPiece == NULL) {
-                moveFlags |= EN_PASSANT_CAPTURE_FLAG;
-            }
-            if (move.length > 4) {
-                let promotedPiece = FEN_CHAR_TO_PIECE_CODE.get(move.charAt(4));
-                moveFlags |= getPieceType(promotedPiece);
-            }
+            if ((moveDistance == 15 || moveDistance == 17) && toPiece == NULL) moveFlags |= EN_PASSANT_CAPTURE_FLAG;
+            if (move.length > 4) moveFlags |= getPieceType(FEN_CHAR_TO_PIECE_CODE.get(move.charAt(4)));
             return createMove(moveFlags, fromSquare, toSquare, fromPiece, toPiece);
         case KING:
             if (Math.abs(fromSquare - toSquare) == 2) moveFlags |= CASTLING_MOVE_FLAG;
@@ -848,23 +821,14 @@ function parseMove(move) {
 }
 
 function parseGoCommand(commandParts) {
-    TIME_LIMIT = Number.MAX_SAFE_INTEGER;
-    DEPTH_LIMIT = Number.MAX_SAFE_INTEGER;
+    DEPTH_LIMIT = MAX_SEARCH_PLY;
     NODE_LIMIT = Number.MAX_SAFE_INTEGER;
-    STOP_SEARCH = false;
-
+    TIME_LIMIT = Number.MAX_SAFE_INTEGER;
     switch (commandParts[1]) {
-        case 'depth':
-            DEPTH_LIMIT = parseInt(commandParts[2], 10);
-            break;
-        case 'nodes':
-            NODE_LIMIT = parseInt(commandParts[2], 10);
-            break;
-        case 'movetime':
-            TIME_LIMIT = parseInt(commandParts[2], 10) - 10;
-            break;
-        case 'infinite':
-            break;
+        case 'depth': DEPTH_LIMIT = parseInt(commandParts[2], 10); break;
+        case 'nodes': NODE_LIMIT = parseInt(commandParts[2], 10); break;
+        case 'movetime': TIME_LIMIT = parseInt(commandParts[2], 10) - 10; break;
+        case 'infinite': break;
         default:
             let availableTime = (ACTIVE_COLOR == WHITE) ? commandParts.indexOf('wtime') : commandParts.indexOf('btime');
             availableTime = parseInt(commandParts[availableTime + 1], 10);
@@ -875,8 +839,7 @@ function parseGoCommand(commandParts) {
 }
 
 function uci() {
-    const readLine = require('readline');
-    const rl = readLine.createInterface({ input: process.stdin, output: process.stdout });
+    let rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
     rl.on('line', (command) => {
         let commandParts = command.split(' ');
         switch (commandParts[0]) {
@@ -901,7 +864,7 @@ function uci() {
                 else initBoard();
                 if (command.includes(' moves ')) {
                     let moves = command.split(' moves ')[1].split(' ');
-                    for (let move of moves) makeMove(parseMove(move));
+                    for (let move of moves) makeMove(parseMove(move), NULL);
                 }
                 break;
             case 'go':
