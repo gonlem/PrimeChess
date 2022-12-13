@@ -1,46 +1,3 @@
-//
-//    +-----------------------------------------------+
-//    |           0x88 BOARD REPRESENTATION           |
-//    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//  8 |00|01|02|03|04|05|06|07|08|09|0A|0B|0C|0D|0E|0F|
-//  7 |10|11|12|13|14|15|16|17|18|19|1A|1B|1C|1D|1E|1F|
-//  6 |20|21|22|23|24|25|26|27|28|29|2A|2B|2C|2D|2E|2F|
-//  5 |30|31|32|33|34|35|36|37|38|39|3A|3B|3C|3D|3E|3F|
-//  4 |40|41|42|43|44|45|46|47|48|49|4A|4B|4C|4D|4E|4F|
-//  3 |50|51|52|53|54|55|56|57|58|59|5A|5B|5C|5D|5E|5F|
-//  2 |60|61|62|63|64|65|66|67|68|69|6A|6B|6C|6D|6E|6F|
-//  1 |70|71|72|73|74|75|76|77|78|79|7A|7B|7C|7D|7E|7F|
-//    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//      A  B  C  D  E  F  G  H
-//
-//  +---------------------------------+   +----------------------------------------+
-//  |          PIECE ENCODING         |   |             MOVE FLAGS                 |
-//  +-----+-----+------+--------------+   +-----------+------+---------------------+
-//  | DEC | HEX | BIN  | DESCRIPTION  |   | BINARY    | HEX  | DESCRIPTION         |
-//  +-----+-----+------+--------------+   +-----------+------+---------------------+
-//  |   0 |   0 | 0000 | NONE         |   | 0000 0111 | 0x07 | PROMOTED PIECE      |
-//  |   1 |   1 | 0001 | WHITE PAWN   |   | 0000 1000 | 0x08 | CASTLING FLAG       |
-//  |   2 |   2 | 0010 | WHITE KING   |   | 0001 0000 | 0x10 | EN PASSANT CAPTURE  |
-//  |   3 |   3 | 0011 | WHITE KNIGHT |   | 0010 0000 | 0x20 | PAWN PUSH 2 SQUARES |
-//  |   4 |   4 | 0100 | WHITE BISHOP |   | 0100 0000 | 0x40 | CAPTURE MOVE        |
-//  |   5 |   5 | 0101 | WHITE ROOK   |   | 1000 0000 | 0x80 | RESET PLY CLOCK     |
-//  |   6 |   6 | 0110 | WHITE QUEEN  |   +-----------+------+---------------------+
-//  |   7 |   7 | 0111 |              |
-//  |   8 |   8 | 1000 |              |
-//  |   9 |   9 | 1001 | BLACK PAWN   |
-//  |  10 |   A | 1010 | BLACK KING   |
-//  |  11 |   B | 1011 | BLACK KNIGHT |
-//  |  12 |   C | 1100 | BLACK BISHOP |
-//  |  13 |   D | 1101 | BLACK ROOK   |
-//  |  14 |   E | 1110 | BLACK QUEEN  |
-//  |  15 |   F | 1111 |              |
-//  +-----+-----+------+--------------+
-//  | PIECE_COLOR_MASK  = 1000 = 0x08 |
-//  | PIECE_TYPE_MASK   = 0111 = 0x07 |
-//  | PIECE_SLIDER_MASK = 0100 = 0x04 |
-//  +---------------------------------+
-//
-
 ////////////////////////////////////////////////////////////////
 //  CONSTANTS                                                 //
 ////////////////////////////////////////////////////////////////
@@ -172,19 +129,19 @@ let MOVE_NUMBER = 1;
 //  FUNCTIONS                                                 //
 ////////////////////////////////////////////////////////////////
 
-function makePiece(color: number, pieceType: number) {
+function makePiece(color, pieceType) {
     return pieceType | (color << 3);
 }
 
-function getPieceColor(piece: number) {
+function getPieceColor(piece) {
     return piece >> 3;
 }
 
-function getPieceType(piece: number) {
+function getPieceType(piece) {
     return (piece & PIECE_TYPE_MASK);
 }
 
-function movePiece(fromSquare: number, toSquare: number) {
+function movePiece(fromSquare, toSquare) {
     let piece = BOARD[fromSquare];
     BOARD[fromSquare] = NULL;
     BOARD[toSquare] = piece;
@@ -194,7 +151,7 @@ function movePiece(fromSquare: number, toSquare: number) {
     BOARD[toSquare + 8] = index;
 }
 
-function addPiece(piece: number, square: number) {
+function addPiece(piece, square) {
     BOARD[square] = piece;
 
     let index = 10 * piece + PIECE_COUNT[piece]++;
@@ -202,7 +159,7 @@ function addPiece(piece: number, square: number) {
     BOARD[square + 8] = index; 
 }
 
-function removePiece(square: number) {
+function removePiece(square) {
     let piece = BOARD[square];
     BOARD[square] = NULL;
 
@@ -212,12 +169,12 @@ function removePiece(square: number) {
     BOARD[PIECE_LIST[lastIndex] + 8] = index;
 }
 
-function parseSquare(squareCoordinates: string): number {
+function parseSquare(squareCoordinates) {
     return (squareCoordinates.charCodeAt(0) - 'a'.charCodeAt(0))
         - 16 * (squareCoordinates.charCodeAt(1) - '8'.charCodeAt(0));
 }
 
-function initBoard(fen: string = STARTING_FEN) {
+function initBoard(fen = STARTING_FEN) {
     let fenParts = fen.split(' ');
     BOARD.fill(NULL);
     PIECE_COUNT.fill(NULL);
@@ -229,7 +186,7 @@ function initBoard(fen: string = STARTING_FEN) {
         if (c == '/') {
             index += 8;
         } else if (isNaN(parseInt(c, 10))) {
-            addPiece(FEN_CHAR_TO_PIECE_CODE.get(c)!, index);
+            addPiece(FEN_CHAR_TO_PIECE_CODE.get(c), index);
             index += 1;
         } else {
             index += parseInt(c, 10);
@@ -256,7 +213,7 @@ function initBoard(fen: string = STARTING_FEN) {
     MOVE_NUMBER = parseInt(fenFullMoveCount, 10);
 }
 
-function isSquareAttacked(square: number, color: number): boolean {
+function isSquareAttacked(square, color) {
     let coloredQueen = makePiece(color, QUEEN);
     let coloredRook = makePiece(color, ROOK);
     let coloredBishop = makePiece(color, BISHOP);
@@ -307,12 +264,12 @@ function isSquareAttacked(square: number, color: number): boolean {
     return false;
 }
 
-function createMove(moveFlags: number, fromSquare: number, toSquare: number, capturedPiece: number = NULL): number {
+function createMove(moveFlags, fromSquare, toSquare, capturedPiece = NULL) {
     return moveFlags | (fromSquare << 8) | (toSquare << 16) | (capturedPiece << 24);
 }
 
-function generateMoves(): number[] {
-    let moveList: number[] = [];
+function generateMoves() {
+    let moveList = [];
     let piece;
     let fromSquare, toSquare;
     let toPiece;
@@ -416,7 +373,7 @@ function generateMoves(): number[] {
     return moveList;
 }
 
-function makeMove(move: number): void {
+function makeMove(move) {
     EN_PASSANT_SQUARE = SQUARE_NULL;
     PLY_CLOCK++;
     
@@ -448,7 +405,7 @@ function makeMove(move: number): void {
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 }
 
-function takeback(move: number): void {
+function takeback(move) {
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
 
     let fromSquare = (move >> 8) & 0xFF;
@@ -471,17 +428,17 @@ function takeback(move: number): void {
     }
 }
 
-function createGlobalState(): number {
+function createGlobalState() {
     return EN_PASSANT_SQUARE | (CASTLING_RIGHTS << 8) | (PLY_CLOCK << 12);
 }
 
-function restoreGlobalState(state: number) {
+function restoreGlobalState(state) {
     EN_PASSANT_SQUARE = state & 0xFF;
     CASTLING_RIGHTS = (state >> 8) & 0x0F;
     PLY_CLOCK = (state >> 12) & 0xFF;
 }
 
-function perft(depth: number) {
+function perft(depth) {
     if (depth == 0) return 1;
     let nodes = 0, m, move;
     let state = createGlobalState();
@@ -502,13 +459,13 @@ function perft(depth: number) {
 //  DISPLAYING AND DEBUGGING FUNCTIONS                        //
 ////////////////////////////////////////////////////////////////
 
-function toSquareCoordinates(square: number) {
+function toSquareCoordinates(square) {
     let file = String.fromCharCode('a'.charCodeAt(0) + (square & FILE_MASK));
     let rank = 8 - ((square & RANK_MASK) >> 4);
     return file + rank;
 }
 
-function toMoveString(move: number) {
+function toMoveString(move) {
     let moveString = toSquareCoordinates((move >> 8) & 0xFF) + toSquareCoordinates((move >> 16) & 0xFF);
     if (move & PROMOTION_MASK) {
         moveString += PIECE_TYPE_TO_CHAR.get((move & PROMOTION_MASK) >> 5);
@@ -526,7 +483,7 @@ function printBoard() {
     console.log(printableBoard);
 }
 
-function divide(depth: number) {
+function divide(depth) {
     printBoard();
     let startTime = Date.now();
     let totalNodes = 0, moveNodes;
@@ -552,7 +509,7 @@ function divide(depth: number) {
 }
 
 function testPerft() {
-    let perftTests = new Map<string, number[]>();
+    let perftTests = new Map();
     perftTests.set('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', [1, 20, 400, 8902, 197281, 4865609, 119060324]); // Starting position
     perftTests.set('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1', [1, 48, 2039, 97862, 4085603, 193690690]); // Position 2
     perftTests.set('8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1', [1, 14, 191, 2812, 43238, 674624, 11030083, 178633661]); // Position 3
@@ -575,7 +532,7 @@ function testPerft() {
 }
 
 function bench() {
-    let benchPositions = new Map<string, number>();
+    let benchPositions = new Map();
     benchPositions.set('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 6);
     benchPositions.set('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1', 5);
     benchPositions.set('8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 0', 7);
@@ -599,8 +556,8 @@ function bench() {
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-bench();
+//bench();
 //testPerft();
 
-//initBoard('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1');
-//divide(5);
+initBoard('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1');
+divide(5);
