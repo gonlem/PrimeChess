@@ -729,21 +729,6 @@ function negamax(alpha, beta, depth) {
     return alpha;
 }
 
-function toMoveString(move) {
-    let moveString = toSquareCoordinates(getFromSquare(move)) + toSquareCoordinates(getToSquare(move));
-    if (move & PROMOTION_MASK) moveString += PIECE_TYPE_TO_CHAR.get(move & PROMOTION_MASK);
-    return moveString;
-}
-
-function uciWriteInfoString(score, elapsedTime) {
-    let infoString = 'info depth ' + SEARCH_DEPTH;
-    if (Math.abs(score) < MATE_VALUE) infoString += ' score cp ' + score;
-    else infoString += ' score mate ' + Math.sign(score) * Math.ceil((Math.abs(score) - MATE_VALUE) / 2);
-    infoString += ' time ' + elapsedTime + ' nodes ' + NODE_COUNT + ' nps ' + Math.round(1000 * NODE_COUNT / elapsedTime) + ' pv';
-    for (let i = 0; i < PV_LENGTH[0]; i++) infoString += ' ' + toMoveString(PV_TABLE[i]);
-    console.log(infoString);
-}
-
 function search() {
     NODE_COUNT = 0;
     SEARCH_DEPTH = 1;
@@ -763,7 +748,7 @@ function search() {
         SEARCH_DEPTH++;
     } while ((SEARCH_DEPTH <= DEPTH_LIMIT) && (elapsedTime < (TIME_LIMIT / 2)));
 
-    return toMoveString(bestMove);
+    return uciToMoveString(bestMove);
 }
 
 ////////////////////////////////////////////////////////////////
@@ -797,7 +782,13 @@ function perft(depth) {
 //  UCI INTEGRATION                                           //
 ////////////////////////////////////////////////////////////////
 
-function parseMove(move) {
+function uciToMoveString(move) {
+    let moveString = toSquareCoordinates(getFromSquare(move)) + toSquareCoordinates(getToSquare(move));
+    if (move & PROMOTION_MASK) moveString += PIECE_TYPE_TO_CHAR.get(move & PROMOTION_MASK);
+    return moveString;
+}
+
+function uciParseMoveString(move) {
     let fromSquare = parseSquare(move.substring(0, 2));
     let toSquare = parseSquare(move.substring(2, 4));
     let fromPiece = BOARD[fromSquare];
@@ -820,7 +811,16 @@ function parseMove(move) {
     }
 }
 
-function parseGoCommand(commandParts) {
+function uciWriteInfoString(score, elapsedTime) {
+    let infoString = 'info depth ' + SEARCH_DEPTH;
+    if (Math.abs(score) < MATE_VALUE) infoString += ' score cp ' + score;
+    else infoString += ' score mate ' + Math.sign(score) * Math.ceil((Math.abs(score) - MATE_VALUE) / 2);
+    infoString += ' time ' + elapsedTime + ' nodes ' + NODE_COUNT + ' nps ' + Math.round(1000 * NODE_COUNT / elapsedTime) + ' pv';
+    for (let i = 0; i < PV_LENGTH[0]; i++) infoString += ' ' + uciToMoveString(PV_TABLE[i]);
+    console.log(infoString);
+}
+
+function uciParseGoCommand(commandParts) {
     DEPTH_LIMIT = MAX_SEARCH_PLY;
     NODE_LIMIT = Number.MAX_SAFE_INTEGER;
     TIME_LIMIT = Number.MAX_SAFE_INTEGER;
@@ -864,11 +864,11 @@ function uci() {
                 else initBoard();
                 if (command.includes(' moves ')) {
                     let moves = command.split(' moves ')[1].split(' ');
-                    for (let move of moves) makeMove(parseMove(move), NULL);
+                    for (let move of moves) makeMove(uciParseMoveString(move), NULL);
                 }
                 break;
             case 'go':
-                parseGoCommand(commandParts);
+                uciParseGoCommand(commandParts);
                 let move = search();
                 console.log('bestmove ' + move);
                 break;
