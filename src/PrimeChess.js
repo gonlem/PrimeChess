@@ -491,11 +491,7 @@ function generateMoves(captureOnly = false) {
         if (KINGSIDE_CASTLING[ACTIVE_COLOR] & CASTLING_RIGHTS) {
             if (BOARD[kingSquare + RIGHT] == NULL
                 && BOARD[kingSquare + RIGHT + RIGHT] == NULL) {
-
-                if (!isSquareAttacked(kingSquare, 1 - ACTIVE_COLOR)
-                    && !isSquareAttacked(kingSquare + RIGHT, 1 - ACTIVE_COLOR)) {
                     moveList.push(createMove(MF_KINGSIDE_CASTLING, kingSquare, kingSquare + RIGHT + RIGHT, king, NULL));
-                }
             }
         }
 
@@ -503,11 +499,7 @@ function generateMoves(captureOnly = false) {
             if (BOARD[kingSquare + LEFT] == NULL
                 && BOARD[kingSquare + LEFT + LEFT] == NULL
                 && BOARD[kingSquare + LEFT + LEFT + LEFT] == NULL) {
-
-                if (!isSquareAttacked(kingSquare, 1 - ACTIVE_COLOR)
-                    && !isSquareAttacked(kingSquare + LEFT, 1 - ACTIVE_COLOR)) {
                     moveList.push(createMove(MF_QUEENSIDE_CASTLING, kingSquare, kingSquare + LEFT + LEFT, king, NULL));
-                }
             }
         }
     }
@@ -575,7 +567,16 @@ function makeMove(move, state) {
     ACTIVE_COLOR = 1 - ACTIVE_COLOR;
     POSITION_HASH_KEY ^= COLOR_HASH_KEY;
 
-    if (isSquareAttacked(PIECE_LIST[10 * makePiece(1 - ACTIVE_COLOR, KING)], ACTIVE_COLOR)) {
+    let kingSquare = PIECE_LIST[10 * makePiece(1 - ACTIVE_COLOR, KING)];
+    if (move & CASTLING_MOVE_FLAG) {
+        let direction = ((toSquare & FILE_MASK) == FILE_G) ? LEFT : RIGHT;
+        if (isSquareAttacked(kingSquare + direction, ACTIVE_COLOR) || isSquareAttacked(kingSquare + direction + direction, ACTIVE_COLOR)) {
+            takeback(move, state);
+            return false;
+        }
+    }
+
+    if (isSquareAttacked(kingSquare, ACTIVE_COLOR)) {
         takeback(move, state);
         return false;
     }
@@ -766,13 +767,12 @@ function printBoard() {
 }
 
 function perft(depth) {
-    if (depth == 0) return 1;
     let nodes = 0;
     let state = createGlobalState();
     let moveList = generateMoves();
     for (let m = 0; m < moveList.length; m++) {
         if (!makeMove(moveList[m], state)) continue;
-        nodes += perft(depth - 1);
+        nodes += (depth > 1) ? perft(depth - 1) : 1;
         takeback(moveList[m], state);
     }
     return nodes;
