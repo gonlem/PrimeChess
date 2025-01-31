@@ -439,7 +439,6 @@ function restoreGlobalState(state) {
 }
 
 function perft(depth) {
-    if (depth == 0) return 1;
     let nodes = 0, m, move;
     let state = createGlobalState();
     let moveList = generateMoves();
@@ -447,7 +446,7 @@ function perft(depth) {
         move = moveList[m];
         makeMove(move);
         if (!isSquareAttacked(PIECE_LIST[makePiece(1 - ACTIVE_COLOR, KING) * 10], ACTIVE_COLOR)) {
-            nodes += perft(depth - 1);
+            nodes += (depth > 1) ? perft(depth - 1) : 1;
         }
         takeback(move);
         restoreGlobalState(state);
@@ -556,8 +555,8 @@ function bench() {
 //  MAIN                                                      //
 ////////////////////////////////////////////////////////////////
 
-//bench();
+bench();
 //testPerft();
 
-initBoard('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1');
-divide(5);
+//initBoard('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1');
+//divide(5);
